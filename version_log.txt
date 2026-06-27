@@ -1,0 +1,33 @@
+==================================================
+        SISTEMA DE GESTIÓN DE TRANSPORTES
+                  HIRATA S.A.
+==================================================
+Versión Actual: 3.2.0 (Estable)
+Ambiente      : Integración de Competencias I
+Fecha Release : 25/06/2026
+
+--------------------------------------------------
+ HISTORIAL DE ACTUALIZACIONES (CHANGELOG)
+--------------------------------------------------
+
+[v3.2.0] - Etapa III: Telemetría e Industria 4.0
+ * Migración completa del módulo tradicional a arquitectura MVC + DAO.
+ * Implementación de lógica base para simulación de sensores de ruta (GPS).
+ * Incorporación de telemetría para control térmico de carga refrigerada.
+ * Unificación de paneles de control redundantes en DashboardView.
+
+[v2.1.5] - Etapa II: Taller Gráfico y Asistente
+ * Diseño de interfaz modular basada en contenedores CardLayout.
+ * Creación de rutinas de persistencia masiva relacional (Batch processing).
+ * Integración de capas de aislamiento transaccional (Commit / Rollback).
+ * Motor nativo de reportes en PDF utilizando buffers Graphics2D.
+
+[v1.0.0] - Etapa I: Núcleo de Control Preventivo
+ * Maquetación relacional inicial en base de datos MySQL.
+ * Algoritmo de cálculo dinámico para alertas preventivas a los 5000 KM.
+ * Implementación de perfiles operativos basados en roles (Sesión).
+
+==================================================
+ Desarrollado por: Área de Informática Hirata
+ Sede de Implementación: Iquique, Chile.
+==================================================
