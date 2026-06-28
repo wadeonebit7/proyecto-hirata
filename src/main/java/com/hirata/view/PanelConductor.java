@@ -11,15 +11,19 @@ import com.hirata.model.Sesion;
 import com.hirata.service.ServicioEnrutamiento;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Graphics2D;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JOptionPane;
 import org.jxmapviewer.JXMapViewer;
 import org.jxmapviewer.OSMTileFactoryInfo;
+import org.jxmapviewer.painter.Painter;
 import org.jxmapviewer.viewer.DefaultTileFactory;
 import org.jxmapviewer.viewer.GeoPosition;
 import org.jxmapviewer.viewer.TileFactoryInfo;
 import org.jxmapviewer.viewer.Waypoint;
 import org.jxmapviewer.viewer.WaypointPainter;
+import org.jxmapviewer.viewer.WaypointRenderer;
 
 
 /**
@@ -37,14 +41,16 @@ public class PanelConductor extends javax.swing.JFrame {
     private Thread hiloSimulacion;
     private ControladorTelemetria emulador;
     
-    // Coordenada base fija de salida: Cavancha, Iquique [cite: 26]
+    // Coordenada base fija de salida: Cavancha, Iquique
     private final GeoPosition origenBase = new GeoPosition(-20.23950915893488, -70.14480829238892);
     private GeoPosition destinoSeleccionado = null;
     
     
     private CamionWaypoint waypointCamionLocal = null; // Guarda el waypoint visual del camión seleccionado por el chofer
      
-    private org.jxmapviewer.viewer.GeoPosition origenCalculoRuta; // Almacena el punto de partida real del próximo viaje (puede ser la base o el último destino)
+    private GeoPosition origenCalculoRuta; // Almacena el punto de partida real del próximo viaje (puede ser la base o el último destino)
+    
+    
     
     /**
      * Creates new form PanelConductor
@@ -147,11 +153,11 @@ public class PanelConductor extends javax.swing.JFrame {
      * Une el camión seleccionado y la ruta vial en el lienzo gráfico sin interferencias.
      */
     private void actualizarCapasMapaConductor() {
-        java.util.List<org.jxmapviewer.painter.Painter<JXMapViewer>> listaPainters = new java.util.ArrayList<>();
+        java.util.List<Painter<JXMapViewer>> listaPainters = new ArrayList<>();
 
         // 1. CAPA DE LÍNEA: Si ya calculó ruta, agregamos el pintor del camino azul
         if (rutaCalculada != null && !rutaCalculada.isEmpty()) {
-            listaPainters.add(new org.jxmapviewer.painter.Painter<JXMapViewer>() {
+            listaPainters.add(new Painter<JXMapViewer>() {
                 @Override
                 public void paint(java.awt.Graphics2D g, JXMapViewer map, int w, int h) {
                     g.setColor(new java.awt.Color(30, 144, 255, 180)); // Azul conductor
@@ -173,10 +179,10 @@ public class PanelConductor extends javax.swing.JFrame {
 
         // 2. CAPA DE ICONO: Si seleccionó camión, lo pintamos usando el renderizador de figuras nativas
         if (waypointCamionLocal != null) {
-            org.jxmapviewer.viewer.WaypointPainter<org.jxmapviewer.viewer.Waypoint> waypointPainter = new org.jxmapviewer.viewer.WaypointPainter<>();
-            waypointPainter.setRenderer(new org.jxmapviewer.viewer.WaypointRenderer<org.jxmapviewer.viewer.Waypoint>() {
+            WaypointPainter<Waypoint> waypointPainter = new WaypointPainter<>();
+            waypointPainter.setRenderer(new WaypointRenderer<Waypoint>() {
                 @Override
-                public void paintWaypoint(java.awt.Graphics2D g, JXMapViewer map, org.jxmapviewer.viewer.Waypoint wp) {
+                public void paintWaypoint(Graphics2D g, JXMapViewer map, Waypoint wp) {
                     if (wp instanceof CamionWaypoint) {
                         CamionWaypoint c = (CamionWaypoint) wp;
                         java.awt.geom.Point2D p = map.getTileFactory().geoToPixel(c.getPosition(), map.getZoom());
@@ -286,14 +292,27 @@ public class PanelConductor extends javax.swing.JFrame {
     private void initComponents() {
 
         jfxContainerConductor = new javax.swing.JPanel();
-        cmbCamionesAsignados = new javax.swing.JComboBox<>();
-        cmbDestinosPredeterminados = new javax.swing.JComboBox<>();
-        btnIniciarViaje = new javax.swing.JButton();
-        btnCancelarViaje = new javax.swing.JButton();
-        txtCombustibleSim = new javax.swing.JLabel();
-        txtTemperaturaSim = new javax.swing.JLabel();
         lblEstadoConductor = new javax.swing.JLabel();
         jLabel1 = new javax.swing.JLabel();
+        jPanel1 = new javax.swing.JPanel();
+        txtTemperaturaSim1 = new javax.swing.JLabel();
+        txtCombustibleSim1 = new javax.swing.JLabel();
+        btnIniciarViaje = new javax.swing.JButton();
+        cmbCamionesAsignados = new javax.swing.JComboBox<>();
+        cmbDestinosPredeterminados = new javax.swing.JComboBox<>();
+        btnCancelarViaje = new javax.swing.JButton();
+        jLabel2 = new javax.swing.JLabel();
+        jLabel3 = new javax.swing.JLabel();
+        jLabel4 = new javax.swing.JLabel();
+        jButton6 = new javax.swing.JButton();
+        txtCombustibleSim = new javax.swing.JLabel();
+        txtTemperaturaSim = new javax.swing.JLabel();
+        txtTemperaturaSim2 = new javax.swing.JLabel();
+        jSlider1 = new javax.swing.JSlider();
+        jSlider2 = new javax.swing.JSlider();
+        jSeparator1 = new javax.swing.JSeparator();
+        jSeparator2 = new javax.swing.JSeparator();
+        txtTemperaturaSim3 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -306,12 +325,28 @@ public class PanelConductor extends javax.swing.JFrame {
         jfxContainerConductor.setLayout(jfxContainerConductorLayout);
         jfxContainerConductorLayout.setHorizontalGroup(
             jfxContainerConductorLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 0, Short.MAX_VALUE)
+            .addGap(0, 596, Short.MAX_VALUE)
         );
         jfxContainerConductorLayout.setVerticalGroup(
             jfxContainerConductorLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 496, Short.MAX_VALUE)
+            .addGap(0, 0, Short.MAX_VALUE)
         );
+
+        lblEstadoConductor.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        lblEstadoConductor.setText("Estado Conductor");
+
+        jLabel1.setFont(new java.awt.Font("Arial", 1, 24)); // NOI18N
+        jLabel1.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel1.setText("SIMULADOR CONDUCTOR - GPS");
+
+        jPanel1.setBorder(javax.swing.BorderFactory.createEtchedBorder());
+
+        txtTemperaturaSim1.setText("Temperatura:");
+
+        txtCombustibleSim1.setText("Combustible:");
+
+        btnIniciarViaje.setText("Iniciar");
+        btnIniciarViaje.addActionListener(this::btnIniciarViajeActionPerformed);
 
         cmbCamionesAsignados.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
         cmbCamionesAsignados.addActionListener(this::cmbCamionesAsignadosActionPerformed);
@@ -319,137 +354,192 @@ public class PanelConductor extends javax.swing.JFrame {
         cmbDestinosPredeterminados.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
         cmbDestinosPredeterminados.addActionListener(this::cmbDestinosPredeterminadosActionPerformed);
 
-        btnIniciarViaje.setText("Iniciar Viaje");
-        btnIniciarViaje.addActionListener(this::btnIniciarViajeActionPerformed);
-
-        btnCancelarViaje.setText("Cancelar Viaje");
+        btnCancelarViaje.setText("Cancelar");
         btnCancelarViaje.addActionListener(this::btnCancelarViajeActionPerformed);
 
-        txtCombustibleSim.setText("Combustible");
+        jLabel2.setFont(new java.awt.Font("Arial", 1, 14)); // NOI18N
+        jLabel2.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel2.setText("SIMULAR SITUACIONES");
 
-        txtTemperaturaSim.setText("Temperatura");
+        jLabel3.setFont(new java.awt.Font("Arial", 1, 14)); // NOI18N
+        jLabel3.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel3.setText("ALERTA CONDUCTOR");
 
-        lblEstadoConductor.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        lblEstadoConductor.setText("Estado Conductor");
+        jLabel4.setFont(new java.awt.Font("Arial", 1, 24)); // NOI18N
+        jLabel4.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel4.setText("PANEL DE CONTROL");
 
-        jLabel1.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jLabel1.setText("NO SE QUE PONER DE TITULO");
+        jButton6.setText("Aplicar Cambios");
+
+        txtCombustibleSim.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        txtCombustibleSim.setText("------");
+        txtCombustibleSim.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.RAISED));
+
+        txtTemperaturaSim.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        txtTemperaturaSim.setText("------");
+        txtTemperaturaSim.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.RAISED));
+
+        txtTemperaturaSim2.setFont(new java.awt.Font("Segoe UI", 0, 10)); // NOI18N
+        txtTemperaturaSim2.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        txtTemperaturaSim2.setText("ALERTA TEMPERATURA");
+
+        txtTemperaturaSim3.setFont(new java.awt.Font("Segoe UI", 0, 10)); // NOI18N
+        txtTemperaturaSim3.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        txtTemperaturaSim3.setText("ALERTA COMBUSTIBLE");
+
+        javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
+        jPanel1.setLayout(jPanel1Layout);
+        jPanel1Layout.setHorizontalGroup(
+            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addGap(36, 36, 36)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(txtTemperaturaSim3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(txtTemperaturaSim2, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+                        .addComponent(txtTemperaturaSim1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addGap(57, 57, 57)
+                        .addComponent(txtTemperaturaSim, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(txtCombustibleSim1, javax.swing.GroupLayout.PREFERRED_SIZE, 113, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(txtCombustibleSim, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addContainerGap(39, Short.MAX_VALUE))
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(cmbCamionesAsignados, javax.swing.GroupLayout.Alignment.TRAILING, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(btnCancelarViaje, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jLabel4, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(btnIniciarViaje, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jLabel3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jLabel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(cmbDestinosPredeterminados, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jSlider1, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jSeparator1)
+                    .addComponent(jSeparator2, javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addComponent(jButton6, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jSlider2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap())
+        );
+        jPanel1Layout.setVerticalGroup(
+            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+                .addGap(19, 19, 19)
+                .addComponent(jLabel4)
+                .addGap(18, 18, 18)
+                .addComponent(cmbCamionesAsignados, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(7, 7, 7)
+                .addComponent(cmbDestinosPredeterminados, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(btnIniciarViaje)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 10, Short.MAX_VALUE)
+                .addComponent(btnCancelarViaje)
+                .addGap(8, 8, 8)
+                .addComponent(jSeparator1, javax.swing.GroupLayout.PREFERRED_SIZE, 10, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jLabel3, javax.swing.GroupLayout.PREFERRED_SIZE, 17, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(18, 18, 18)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(txtCombustibleSim1)
+                    .addComponent(txtCombustibleSim))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(txtTemperaturaSim3)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(txtTemperaturaSim1)
+                    .addComponent(txtTemperaturaSim))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(txtTemperaturaSim2)
+                .addGap(12, 12, 12)
+                .addComponent(jSeparator2, javax.swing.GroupLayout.PREFERRED_SIZE, 10, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jLabel2)
+                .addGap(18, 18, 18)
+                .addComponent(jSlider1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(18, 18, 18)
+                .addComponent(jSlider2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(38, 38, 38)
+                .addComponent(jButton6)
+                .addGap(14, 14, 14))
+        );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                            .addComponent(cmbDestinosPredeterminados, 0, 187, Short.MAX_VALUE)
-                            .addComponent(cmbCamionesAsignados, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED))
-                    .addGroup(layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(txtCombustibleSim, javax.swing.GroupLayout.PREFERRED_SIZE, 171, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(btnCancelarViaje, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(btnIniciarViaje, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addGap(12, 12, 12))
-            .addGroup(layout.createSequentialGroup()
-                .addGap(158, 158, 158)
-                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 282, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(0, 172, Short.MAX_VALUE))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(txtTemperaturaSim, javax.swing.GroupLayout.PREFERRED_SIZE, 171, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(lblEstadoConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addComponent(jfxContainerConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addGap(6, 6, 6))
+                        .addComponent(jfxContainerConductor, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(jLabel1, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(8, 8, 8)
+                        .addComponent(lblEstadoConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                .addContainerGap())
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(jLabel1)
-                        .addGap(22, 22, 22)
-                        .addComponent(cmbCamionesAsignados, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(cmbDestinosPredeterminados, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(44, 44, 44)
-                        .addComponent(btnIniciarViaje, javax.swing.GroupLayout.PREFERRED_SIZE, 51, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(btnCancelarViaje)
-                    .addComponent(txtCombustibleSim))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(lblEstadoConductor)
-                    .addComponent(txtTemperaturaSim))
+                .addGap(22, 22, 22)
+                .addComponent(jLabel1)
+                .addGap(18, 29, Short.MAX_VALUE)
+                .addComponent(lblEstadoConductor)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(jfxContainerConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(jfxContainerConductor, javax.swing.GroupLayout.DEFAULT_SIZE, 529, Short.MAX_VALUE)
+                    .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                 .addContainerGap())
         );
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
-    
-    // ACCIÓN DEL COMBOBOX DE DESTINOS
-    private void cmbDestinosPredeterminadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbDestinosPredeterminadosActionPerformed
-        // TODO add your handling code here:
-        if (cmbCamionesAsignados.getSelectedIndex() <= 0) {
-            if (cmbDestinosPredeterminados.getSelectedIndex() > 0) {
-                cmbDestinosPredeterminados.setSelectedIndex(0);
-                javax.swing.JOptionPane.showMessageDialog(this, "Debe seleccionar un vehículo primero.", "Validación", javax.swing.JOptionPane.WARNING_MESSAGE);
-            }
-            return;
-        }
-        
-        // Bloquear si ya está viajando
-        if (emulador != null && !btnIniciarViaje.isEnabled()) return;
 
-        int index = cmbDestinosPredeterminados.getSelectedIndex();
-        if (index <= 0) return; 
-        
-        if (index == 1) destinoSeleccionado = new GeoPosition(-20.20521000, -70.13425000); // ZOFRI
-        if (index == 2) destinoSeleccionado = new GeoPosition(-20.20110000, -70.13910000); // Puerto
-        if (index == 3) destinoSeleccionado = new GeoPosition(-20.22415000, -70.15340000); // Playa Brava
-        
-        actualizarDestinoEnRuta();
-    }//GEN-LAST:event_cmbDestinosPredeterminadosActionPerformed
+    private void btnCancelarViajeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCancelarViajeActionPerformed
+        // TODO add your handling code here:
+        if (emulador != null) {
+            emulador.detenerSimulacion();
+        }
+        if (timerAnimacionConductor != null) {
+            timerAnimacionConductor.stop(); // Apagar animación visual
+        }
+
+        // Habilitar controles nuevamente
+        btnIniciarViaje.setEnabled(true);
+        btnCancelarViaje.setEnabled(false);
+        cmbCamionesAsignados.setEnabled(true);
+        cmbDestinosPredeterminados.setEnabled(true);
+        lblEstadoConductor.setText("Viaje Terminado/Cancelado. Controles desbloqueados.");
+    }//GEN-LAST:event_btnCancelarViajeActionPerformed
 
     private void cmbCamionesAsignadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbCamionesAsignadosActionPerformed
         // TODO add your handling code here:
         mostrarCamionEnOrigen();
     }//GEN-LAST:event_cmbCamionesAsignadosActionPerformed
-    // BOTÓN: INICIAR RECORRIDO
-                                            
 
     // BOTÓN: CANCELAR / DETENER RECORRIDO
     private void btnIniciarViajeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnIniciarViajeActionPerformed
         // TODO add your handling code here:
         // 1. Validaciones básicas de selección
         if (cmbCamionesAsignados.getSelectedIndex() <= 0) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Debe seleccionar un camión asignado antes de arrancar.", "Atención", javax.swing.JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Debe seleccionar un camión asignado antes de arrancar.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
         if (destinoSeleccionado == null || rutaCalculada == null || rutaCalculada.isEmpty()) {
-            javax.swing.JOptionPane.showMessageDialog(this, "Debe marcar un punto de destino válido en el mapa o combo.", "Atención", javax.swing.JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Debe marcar un punto de destino válido en el mapa o combo.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         String patenteSeleccionada = cmbCamionesAsignados.getSelectedItem().toString();
-        
+
         Camion camionActual = ctrl.obtenerDatosCamionAdmin(patenteSeleccionada);
 
         if (camionActual == null) {
-            javax.swing.JOptionPane.showMessageDialog(this, 
-                "Error crítico al recuperar los datos del vehículo para la simulación.", 
+            javax.swing.JOptionPane.showMessageDialog(this,
+                "Error crítico al recuperar los datos del vehículo para la simulación.",
                 "Error de Consistencia", javax.swing.JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -460,7 +550,7 @@ public class PanelConductor extends javax.swing.JFrame {
         // 2. Inicializar y arrancar el Emulador IoT con el ID real
         emulador = new ControladorTelemetria(idCamionReal, rutaCalculada);
         emulador.setPatente(patenteSeleccionada);
-        
+
         hiloSimulacion = new Thread(emulador);
         hiloSimulacion.start();
 
@@ -468,16 +558,16 @@ public class PanelConductor extends javax.swing.JFrame {
         timerAnimacionConductor = new javax.swing.Timer(3000, e -> {
             if (emulador != null && emulador.isEnRuta()) {
                 GeoPosition posActual = new GeoPosition(emulador.getLatActual(), emulador.getLonActual()); // Le pedimos al emulador su posición actual cambiante
-                
+
                 // Movemos el marcador del camión sobre el mapa
                 waypointCamionLocal = new CamionWaypoint(
                     camionActual.getId(), patenteSeleccionada, posActual.getLatitude(), posActual.getLongitude(),
                     emulador.getCombustibleActual(), emulador.getTemperaturaCarga() // Muestra datos en vivo
                 );
-                
+
                 // RECOMENDADO: Hace que la cámara del mapa siga al camión en movimiento
                 mapaConductor.setAddressLocation(posActual);
-                
+
                 actualizarCapasMapaConductor();
             } else {
                 if (emulador != null) {
@@ -491,27 +581,17 @@ public class PanelConductor extends javax.swing.JFrame {
         // 4. Conmutación de estados visuales seguros
         btnIniciarViaje.setEnabled(false);
         btnCancelarViaje.setEnabled(true);
-        cmbCamionesAsignados.setEnabled(false); 
+        cmbCamionesAsignados.setEnabled(false);
         cmbDestinosPredeterminados.setEnabled(false);
         lblEstadoConductor.setText("Viaje en progreso. Controles de mapa bloqueados.");
     }//GEN-LAST:event_btnIniciarViajeActionPerformed
 
-    private void btnCancelarViajeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCancelarViajeActionPerformed
-        // TODO add your handling code here:
-        if (emulador != null) {
-            emulador.detenerSimulacion();
-        }
-        if (timerAnimacionConductor != null) {
-            timerAnimacionConductor.stop(); // Apagar animación visual
-        }
-        
-        // Habilitar controles nuevamente
-        btnIniciarViaje.setEnabled(true);
-        btnCancelarViaje.setEnabled(false);
-        cmbCamionesAsignados.setEnabled(true);
-        cmbDestinosPredeterminados.setEnabled(true);
-        lblEstadoConductor.setText("Viaje Terminado/Cancelado. Controles desbloqueados.");
-    }//GEN-LAST:event_btnCancelarViajeActionPerformed
+    private void cmbDestinosPredeterminadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbDestinosPredeterminadosActionPerformed
+
+    }//GEN-LAST:event_cmbDestinosPredeterminadosActionPerformed
+    
+   // BOTÓN: INICIAR RECORRIDO
+                                            
 
     private void cargarDatos() {
         
@@ -553,10 +633,23 @@ public class PanelConductor extends javax.swing.JFrame {
     private javax.swing.JButton btnIniciarViaje;
     private javax.swing.JComboBox<String> cmbCamionesAsignados;
     private javax.swing.JComboBox<String> cmbDestinosPredeterminados;
+    private javax.swing.JButton jButton6;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JPanel jPanel1;
+    private javax.swing.JSeparator jSeparator1;
+    private javax.swing.JSeparator jSeparator2;
+    private javax.swing.JSlider jSlider1;
+    private javax.swing.JSlider jSlider2;
     private javax.swing.JPanel jfxContainerConductor;
     private javax.swing.JLabel lblEstadoConductor;
     private javax.swing.JLabel txtCombustibleSim;
+    private javax.swing.JLabel txtCombustibleSim1;
     private javax.swing.JLabel txtTemperaturaSim;
+    private javax.swing.JLabel txtTemperaturaSim1;
+    private javax.swing.JLabel txtTemperaturaSim2;
+    private javax.swing.JLabel txtTemperaturaSim3;
     // End of variables declaration//GEN-END:variables
 }

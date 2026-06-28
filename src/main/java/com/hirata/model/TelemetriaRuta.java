@@ -20,6 +20,12 @@ public class TelemetriaRuta {
     private double consumoCombustible;
     private int temperaturaMotor;
     private double temperaturaCelsius; // Atributo para el control de cadena de frío (RF-13)
+    
+    private String marcaCamion;
+    private String modeloCamion;
+    
+    private int segundosAtras;
+    
 
     // Constructor vacío
     public TelemetriaRuta() {}
@@ -39,6 +45,18 @@ public class TelemetriaRuta {
     }
 
     // --- GETTERS Y SETTERS ---
+    
+    public int getSegundosAtras() { return segundosAtras; }
+    public void setSegundosAtras(int segundosAtras) { this.segundosAtras = segundosAtras; }
+    
+    
+    public String getMarcaCamion() { return marcaCamion; }
+    public void setMarcaCamion(String marcaCamion) { this.marcaCamion = marcaCamion; }
+
+    public String getModeloCamion() { return modeloCamion; }
+    public void setModeloCamion(String modeloCamion) { this.modeloCamion = modeloCamion; }
+    
+    
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
 

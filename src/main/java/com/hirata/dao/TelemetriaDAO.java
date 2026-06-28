@@ -89,21 +89,22 @@ public class TelemetriaDAO {
     public List<TelemetriaRuta> listarUltimasPosicionesFlota() {
         List<TelemetriaRuta> lista = new ArrayList<>();
         
-        // Query avanzada que extrae de forma eficiente la última fila insertada por cada GPS activo
-        String sql = "SELECT tr.*, c.patente, "
-                   + "       (SELECT tc.temperatura_celsius "
-                   + "        FROM control_temperatura_carga tc "
-                   + "        WHERE tc.id_gps_fk = tr.id_gps_fk "
-                   + "        ORDER BY tc.id DESC LIMIT 1) AS ultima_temp "
-                   + "FROM telemetria_ruta tr "
-                   + "INNER JOIN camiones AS c ON c.id = (SELECT id_camion_fk FROM dispositivos_gps WHERE id = tr.id_gps_fk) "
-                   + "INNER JOIN ( "
-                   + "    SELECT id_gps_fk, MAX(id) AS max_id "
-                   + "    FROM telemetria_ruta "
-                   + "    GROUP BY id_gps_fk "
-                   + ") sub ON tr.id = sub.max_id "
-                   + "INNER JOIN dispositivos_gps g ON tr.id_gps_fk = g.id "
-                   + "WHERE g.estado = 1";
+        // Query optimizada: Agregamos el cálculo de segundos de antigüedad individual directamente en MySQL
+    String sql = "SELECT tr.*, c.patente, c.marca, c.modelo, "
+               + "       TIMESTAMPDIFF(SECOND, tr.fecha_hora, NOW()) AS segundos_atras, " // <-- Clave para independizar camiones
+               + "       (SELECT tc.temperatura_celsius "
+               + "        FROM control_temperatura_carga tc "
+               + "        WHERE tc.id_gps_fk = tr.id_gps_fk "
+               + "        ORDER BY tc.id DESC LIMIT 1) AS ultima_temp "
+               + "FROM telemetria_ruta tr "
+               + "INNER JOIN camiones AS c ON c.id = (SELECT id_camion_fk FROM dispositivos_gps WHERE id = tr.id_gps_fk) "
+               + "INNER JOIN ( "
+               + "    SELECT id_gps_fk, MAX(id) AS max_id "
+               + "    FROM telemetria_ruta "
+               + "    GROUP BY id_gps_fk "
+               + ") sub ON tr.id = sub.max_id "
+               + "INNER JOIN dispositivos_gps g ON tr.id_gps_fk = g.id "
+               + "WHERE g.estado = 1";
         
         try (Connection con = MySQLConexion.getConexion();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -114,12 +115,20 @@ public class TelemetriaDAO {
                 t.setId(rs.getInt("id"));
                 t.setIdGpsFk(rs.getInt("id_gps_fk"));
                 t.setPatente(rs.getString("patente"));
+                // Mapeamos los nuevos campos del camión al DTO
+                t.setMarcaCamion(rs.getString("marca"));
+                t.setModeloCamion(rs.getString("modelo"));
                 t.setFechaHora(rs.getTimestamp("fecha_hora"));
                 t.setLatitud(rs.getDouble("latitud"));
                 t.setLongitud(rs.getDouble("longitud"));
                 t.setConsumoCombustible(rs.getDouble("consumo_combustible"));
                 t.setTemperaturaMotor(rs.getInt("temperatura_motor"));
-                t.setTemperaturaCelsius(rs.getDouble("ultima_temp")); // Mapea la temperatura de carga en vivo
+                t.setTemperaturaCelsius(rs.getDouble("ultima_temp")); // Cadena de frío
+                
+                // =========================================================================
+                // Asignación semántica de la antigüedad del reporte
+                // =========================================================================
+                t.setSegundosAtras(rs.getInt("segundos_atras"));
                 
                 lista.add(t);
             }

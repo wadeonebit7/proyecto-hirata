@@ -119,7 +119,7 @@ public class ControladorTelemetria implements Runnable {
                 System.out.println("[Sensor-IoT] Avanzando por calle. Nodo " + (pasoActual + 1) + " de " + rutaRealCalles.size());
 
                 // Avanzar al siguiente nodo vial
-                pasoActual++;
+                pasoActual += 4;
                 
                 // Esperar 3 segundos para sincronizar con el Timer de la vista
                 Thread.sleep(3000); 
