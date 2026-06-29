@@ -11,6 +11,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.table.DefaultTableModel;
+import org.jxmapviewer.viewer.GeoPosition;
 
 /**
  *
@@ -53,7 +54,7 @@ public class ControladorConductor extends ControladorBase {
         return ejecutarRegistroKM(camion.getId(), com.hirata.model.Sesion.idPersonal, camion.getKilometrajeAcumulado(), km);
     }
     
-    public org.jxmapviewer.viewer.GeoPosition obtenerUltimaPosicionCamion(String patente) {
+    public GeoPosition obtenerUltimaPosicionCamion(String patente) {
         // Instanciamos el DAO encargado de la telemetría IoT
         TelemetriaDAO tDao = new TelemetriaDAO();
 
@@ -74,6 +75,24 @@ public class ControladorConductor extends ControladorBase {
             System.err.println("Error al obtener ID del hardware GPS: " + e.getMessage());
         }
         return -1; // Retorna -1 si no tiene hardware vinculado
+    }
+    
+    // Recupera el último nivel de combustible registrado en la base de datos para este GPS
+    public double obtenerUltimoCombustible(int idGps) {
+        String sql = "SELECT consumo_combustible FROM telemetria_ruta WHERE id_gps_fk = ? ORDER BY id DESC LIMIT 1";
+        try (Connection con = MySQLConexion.getConexion();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            
+            ps.setInt(1, idGps);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("consumo_combustible");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error en ControladorConductor -> obtenerUltimoCombustible: " + e.getMessage());
+        }
+        return 100.0; // Si el camión es nuevo y no tiene registros, inicializa con estanque lleno (100%)
     }
 
     // ---------- CONTRATO DE HERENCIA OBLIGATORIO (ControladorBase) ----------

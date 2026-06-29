@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 import javax.swing.JOptionPane;
 import javax.swing.Timer;
+import javax.swing.table.DefaultTableModel;
 import org.jxmapviewer.JXMapViewer;
 import org.jxmapviewer.OSMTileFactoryInfo;
 import org.jxmapviewer.input.PanMouseInputListener;
@@ -40,27 +41,85 @@ import org.jxmapviewer.viewer.WaypointRenderer;
 public class PanelMonitoreoIoT extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(PanelMonitoreoIoT.class.getName());
-
-    private javax.swing.Timer timerMonitoreo;
-    private int idCamionSeleccionadoAdmin = -1; // Cambiará según el camión que elija monitorear el admin
-    private CamionWaypoint waypointCamionMonitoreo = null;
-    // Base operativa de Hirata para enfocar si no hay viaje activo
-    private final GeoPosition origenBase = new GeoPosition(-20.23950916, -70.14480829);
     
     private JXMapViewer mapaViewer;
     private final TelemetriaDAO telemetriaDAO;
     private Timer relojMonitoreo;
     private int idGpsSeleccionado = -1;
     
+    private java.awt.Image imgCamionAzul = null;
+    private java.awt.Image imgCamionRojo = null;
+    
     /**
      * Creates new form PanelMonitoreoIoT
      */
     public PanelMonitoreoIoT() {
         initComponents();
+        
+        // Cargar las imágenes PNG en memoria al iniciar la ventana
+        try {
+            // El "/com/hirata/view/" debe coincidir exactamente con la ruta de carpetas donde guardes tus PNGs
+            imgCamionAzul = new javax.swing.ImageIcon(getClass().getResource("/com/hirata/view/camion_azul.png")).getImage();
+            imgCamionRojo = new javax.swing.ImageIcon(getClass().getResource("/com/hirata/view/camion_rojo.png")).getImage();
+        } catch (Exception ex) {
+            System.err.println("Advertencia: No se pudieron cargar los archivos PNG de los camiones. " + ex.getMessage());
+        }
+        
         this.setLocationRelativeTo(null);
         this.telemetriaDAO = new TelemetriaDAO();
         inicializarMapaNativo();
         configurarTemporizadorLectura();
+        
+        // RENDERIZADOR PERSONALIZADO PARA MARCAR ALERTAS TÉRMICAS EN LA TABLA
+        tblFlota.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                
+                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                
+                // =====================================================================
+                // SOLUCIÓN AL ERROR: Validación de seguridad contra nulos (Null Check)
+                // =====================================================================
+                Object valorCelda = table.getValueAt(row, 0);
+                if (valorCelda == null) {
+                    return c; // Si la fila está vacía o cargando, retorna el color por defecto sin hacer nada
+                }
+                
+                String patenteFila = valorCelda.toString();
+                boolean excedeTemperatura = false;
+                
+                if (listaWaypoints != null) {
+                    for (org.jxmapviewer.viewer.Waypoint wp : listaWaypoints) {
+                        if (wp instanceof CamionWaypoint) {
+                            CamionWaypoint camion = (CamionWaypoint) wp;
+                            // Comparamos el límite de 5.0°C
+                            if (camion.getPatente().equalsIgnoreCase(patenteFila) && camion.getTemperatura() > 5.0) {
+                                excedeTemperatura = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Aplicar colores dinámicos
+                if (excedeTemperatura) {
+                    c.setBackground(new Color(255, 204, 204)); // Fondo Rojo de Alerta
+                    c.setForeground(Color.RED);               // Texto Rojo
+                    setFont(getFont().deriveFont(java.awt.Font.BOLD));
+                } else {
+                    if (isSelected) {
+                        c.setBackground(table.getSelectionBackground());
+                        c.setForeground(table.getSelectionForeground());
+                    } else {
+                        c.setBackground(Color.WHITE); // Fondo Normal
+                        c.setForeground(Color.BLACK);
+                        setFont(getFont().deriveFont(java.awt.Font.PLAIN));
+                    }
+                }
+                return c;
+            }
+        });
     }
     
     private void inicializarMapaNativo() {
@@ -116,7 +175,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                                 idGpsSeleccionado = camion.getIdGps();
 
                                 // Inyectamos también en los campos fijos por si acaso
-                                txtGpsVinculado.setText(String.valueOf(camion.getIdGps()));
+                                txtDispositivoGps.setText(String.valueOf(camion.getIdGps()));
                                 camionDetectado = true;
                                 break;
                             }
@@ -126,7 +185,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     // Si el clic terminó y no se tocó ningún camión en el radio, ocultamos el panel
                     if (!camionDetectado) {
                         idGpsSeleccionado = -1;
-                        txtGpsVinculado.setText("");
+                        txtDispositivoGps.setText("");
                         mapaViewer.repaint(); // Redibujar inmediatamente para borrar el panel de la pantalla
                     }
                 }
@@ -172,6 +231,43 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         // Temporizador de 3 segundos para el Personal de Logística (PC 1) 
         relojMonitoreo = new javax.swing.Timer(3000, e -> {
             List<TelemetriaRuta> flotaActiva = telemetriaDAO.listarUltimasPosicionesFlota();
+            
+            DefaultTableModel modeloTabla = (DefaultTableModel) tblFlota.getModel();
+            int filaSeleccionada = tblFlota.getSelectedRow();
+            modeloTabla.setRowCount(0);
+            
+            int contadorAlertasTermicas = 0;
+            
+            for (TelemetriaRuta t : flotaActiva) {
+                modeloTabla.addRow(new Object[]{
+                    t.getPatente(),
+                    t.getNumeroSerieGps() // Mostramos el número de serie del hardware
+                });
+                
+                // EVALUACIÓN EN TIEMPO REAL: Si el camión actual excede los 5.0°C, sumamos una incidencia
+                if (t.getTemperaturaMotor() > 5.0) {
+                    contadorAlertasTermicas++;
+                }
+            }
+            
+            // =========================================================================
+            // NUEVO: ACTUALIZACIÓN DINÁMICA DE LOS LABELS DE RESUMEN OPERATIVO (KPIs)
+            // =========================================================================
+            lblTotalFlota.setText("Flota Activa: " + flotaActiva.size() + " vehículos.");
+            lblTotalIncidencias.setText("Incidencias: " + contadorAlertasTermicas + " alertas térmicas.");
+            
+            // Gestión visual inteligente: Si hay alertas se tiñe de rojo, si está todo limpio en verde
+            if (contadorAlertasTermicas > 0) {
+                lblTotalIncidencias.setForeground(Color.RED);
+            } else {
+                lblTotalIncidencias.setForeground(new Color(0, 153, 51)); // Color Verde estable
+            }
+            // =========================================================================
+            
+            // Restaurar la selección del usuario
+            if (filaSeleccionada != -1 && filaSeleccionada < tblFlota.getRowCount()) {
+                tblFlota.setRowSelectionInterval(filaSeleccionada, filaSeleccionada);
+            }
 
             // 1. Limpiar y rellenar los marcadores de la flota activa en el mapa
             listaWaypoints.clear();
@@ -182,7 +278,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         t.getLatitud(), 
                         t.getLongitud(), 
                         t.getConsumoCombustible(), 
-                        t.getTemperaturaCelsius()
+                        t.getTemperaturaMotor() // Mapeado como temperatura de carga
                 ));
             }
 
@@ -197,20 +293,37 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         int x = (int) p.getX();
                         int y = (int) p.getY();
 
-                        // Dibujar el icono nativo del camión
-                        g.setColor(c.getColorEstado());
-                        g.fillRect(x - 12, y - 6, 22, 11); // Cuerpo
-                        g.fillRect(x + 10, y - 3, 6, 8);   // Cabina
-                        g.setColor(Color.BLACK);
-                        g.fillOval(x - 9, y + 5, 4, 4);    // Ruedas
-                        g.fillOval(x + 2, y + 5, 4, 4);
-                        g.fillOval(x + 10, y + 5, 4, 4);
+                        // CONMUTACIÓN DE IMÁGENES EN TIEMPO REAL (REEMPLAZA LOS RECTÁNGULOS)
+                        // Si las imágenes se cargaron con éxito, las pintamos alternando según la temperatura
+                        if (imgCamionAzul != null && imgCamionRojo != null) {
 
+                            // Si la temperatura excede los 5.0°C, elegimos el camión rojo, sino el azul
+                            java.awt.Image imagenAQuemar = (c.getTemperatura() > 5.0) ? imgCamionRojo : imgCamionAzul;
+
+                            // Dibujamos el PNG centrado en la coordenada GPS (Ancho: 32, Alto: 16)
+                            // Restamos la mitad del tamaño (x - 16, y - 8) para que el centro de la imagen coincida con el punto exacto
+                            g.drawImage(imagenAQuemar, x - 16, y - 8, 48, 24, null);
+
+                        } else {
+                            // SISTEMA DE RESPALDO (Fallback): Si los archivos PNG no existen, dibuja los rectángulos originales
+                            // Esto evita que el mapa quede vacío si hay problemas con las rutas de los archivos
+                            g.setColor(c.getColorEstado()); 
+                            g.fillRect(x - 12, y - 6, 22, 11); 
+                            g.fillRect(x + 10, y - 3, 6, 8);   
+
+                            g.setColor(Color.BLACK);
+                            g.fillOval(x - 9, y + 5, 4, 4);    
+                            g.fillOval(x + 2, y + 5, 4, 4);
+                            g.fillOval(x + 10, y + 5, 4, 4);
+                        }
+
+                        // Imprimir el S/N del GPS flotando arriba del camión en el mapa
                         g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
-                        g.drawString("S/N: " + c.getIdGps(), x - 15, y - 10);
+                        g.setColor(Color.BLACK);
+                        g.drawString("S/N: " + c.getIdGps(), x - 15, y - 12);
 
                         // =========================================================================
-                        // RENDERIZADO DEL PANEL FLOTANTE EN TIEMPO REAL (REDISEÑADO Y CORREGIDO)
+                        // RENDERIZADO DEL PANEL FLOTANTE EN TIEMPO REAL
                         // =========================================================================
                         if (c.getIdGps() == idGpsSeleccionado) {
                             TelemetriaRuta infoCamion = null;
@@ -224,7 +337,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                             if (infoCamion != null) {
                                 // Aumentamos levemente el alto a 130 para dar espacio a la fila de la patente sin colapsar textos
                                 int anchoPanel = 220; 
-                                int altoPanel = 130;
+                                int altoPanel = 145;
                                 int panelX = x - (anchoPanel / 2); 
                                 int panelY = y - altoPanel - 25;
 
@@ -247,7 +360,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 11));
                                 g.drawString("TELEMETRÍA EN VIVO", posXText, posYText);
 
-                                // Línea separadora
+                                // Separador visual fino
                                 g.setColor(new Color(200, 200, 200));
                                 g.drawLine(panelX + 10, panelY + 22, panelX + anchoPanel - 10, panelY + 22);
 
@@ -258,47 +371,46 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                                 String vehiculoInfo = (infoCamion.getMarcaCamion() != null) ? (infoCamion.getMarcaCamion() + " " + infoCamion.getModeloCamion()) : "Vehículo Desconocido";
                                 g.drawString("Vehículo: " + vehiculoInfo, posXText, posYText + 16);
                                 g.drawString("Patente: " + c.getPatente(), posXText, posYText + 28);
-
+                                
+                                // Mostrar Conductor
+                                String choferAsignado = (infoCamion.getNombreChofer() != null) ? infoCamion.getNombreChofer() : "Sin Chofer";
+                                g.drawString("Chofer: " + choferAsignado, posXText, posYText + 40);
+                                
                                 // 2. Coordenadas Geográficas
-                                g.drawString("Lat: " + String.format("%.6f", c.getPosition().getLatitude()) + " | Lon: " + String.format("%.6f", c.getPosition().getLongitude()), posXText, posYText + 41);
+                                g.drawString("Lat: " + String.format("%.6f", c.getPosition().getLatitude()) + " | Lon: " + String.format("%.6f", c.getPosition().getLongitude()), posXText, posYText + 53);
 
                                 // ===================== 3. Estado del GPS con Lógica Temporal Global =========================
-                                g.drawString("Estado GPS: ", posXText, posYText + 54);
+                                g.drawString("Estado GPS: ", posXText, posYText + 66);
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
 
-                                boolean estaActivoAhora = false;
-
-                                if (infoCamion != null) {
-                                    // Leemos de forma directa y explícita el retraso real de este vehículo
-                                    int segundosDesdeUltimoInforme = infoCamion.getSegundosAtras();
-                                    
-                                    // Ventana elástica segura: si transmitió en los últimos 15 segundos, está ONLINE
-                                    if (segundosDesdeUltimoInforme >= 0 && segundosDesdeUltimoInforme <= 15) {
-                                        estaActivoAhora = true;
-                                    }
-                                }
+                                boolean estaActivoAhora = (infoCamion.getSegundosAtras() >= 0 && infoCamion.getSegundosAtras() <= 15);
 
                                 if (estaActivoAhora) {
                                     g.setColor(new Color(0, 153, 51)); // Verde
-                                    g.drawString("ONLINE", posXText + 58, posYText + 54);
+                                    g.drawString("ONLINE", posXText + 58, posYText + 66);
                                 } else {
                                     g.setColor(new Color(230, 126, 34)); // Gris
-                                    g.drawString("Ahorro de Energía", posXText + 58, posYText + 54);
+                                    g.drawString("Ahorro de Energía", posXText + 58, posYText + 66);
                                 }
 
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 10));
                                 g.setColor(new Color(30, 30, 30));
                                 // ===========================================================================================
                                 
-                                // 4. Variables de los Sensores IoT
-                                g.drawString("Combustible: " + String.format("%.1f%%", c.getCombustible()), posXText, posYText + 67);
-                                
-                                if (c.getTemperatura() > 5.0) {
+                                // 4. Combustible y Temperatura de Carga
+                                g.drawString("Combustible: " + String.format("%.1f%%", infoCamion.getConsumoCombustible()), posXText, posYText + 79);
+
+                                // Extraemos el valor de la columna mapeada
+                                double tempReal = infoCamion.getTemperaturaMotor();
+
+                                // Si la temperatura de la carga supera el límite crítico del RF-13 (5°C), se pinta en rojo
+                                if (tempReal > 5.0) {
                                     g.setColor(Color.RED);
                                     g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
                                 }
-                                g.drawString("Temp. Carga: " + String.format("%.1f°C", c.getTemperatura()), posXText, posYText + 80);
-                                
+                                g.drawString("Temp. Carga: " + String.format("%.1f°C", tempReal), posXText, posYText + 92);
+
+                                // Restablecer color estándar
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 10));
                                 g.setColor(new Color(30, 30, 30));
 
@@ -309,7 +421,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                                     textoFechaHora = sdfVisual.format(infoCamion.getFechaHora());
                                 }
                                 g.setColor(Color.DARK_GRAY);
-                                g.drawString("Informe: " + textoFechaHora, posXText, posYText + 95);
+                                g.drawString("Informe: " + textoFechaHora, posXText, posYText + 107);
                             }
                         }
                     }
@@ -323,10 +435,8 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
             CompoundPainter<JXMapViewer> compoundPainter = new CompoundPainter<>(listaPainters);
             mapaViewer.setOverlayPainter(compoundPainter);
-
             mapaViewer.repaint();
         });
-
         relojMonitoreo.start();
     }
 
@@ -341,109 +451,11 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             System.out.println("[Puente IoT] El Administrador seleccionó el Dispositivo GPS ID: " + idGps);
             
             // Aquí puedes colocar consultas adicionales usando tu DAO para pintar etiquetas:
-            txtGpsVinculado.setText("S/N: " + idGps);
+            txtDispositivoGps.setText("S/N: " + idGps);
             
             // Alerta visual de confirmación en la UI
             JOptionPane.showMessageDialog(null, "Abriendo bitácora de telemetría en tiempo real para el GPS ID: " + idGps);
         }
-    }
-    
-    private void activarEscuchaMonitoreo(int idCamion, String patente) {
-        // Si ya había un reloj corriendo, lo apagamos para no duplicar procesos
-        if (timerMonitoreo != null && timerMonitoreo.isRunning()) {
-            timerMonitoreo.stop();
-        }
-
-        idCamionSeleccionadoAdmin = idCamion;
-
-        // Configurar reloj para ir a MySQL cada 3 segundos (3000 ms)
-        timerMonitoreo = new javax.swing.Timer(3000, e -> {
-            ControladorAdmin ctrl = new ControladorAdmin();
-            com.hirata.model.TelemetriaRuta dataLive = ctrl.obtenerTelemetriaEnVivo(idCamionSeleccionadoAdmin);
-
-            if (dataLive != null) {
-                org.jxmapviewer.viewer.GeoPosition posActual = new org.jxmapviewer.viewer.GeoPosition(dataLive.getLatitud(), dataLive.getLongitud());
-
-                // Requerimiento Crítico RF-13: Monitoreo térmico automatizado
-                // Instanciamos el waypoint pasando la temperatura real leída del sensor IoT
-                waypointCamionMonitoreo = new CamionWaypoint(
-                    idCamionSeleccionadoAdmin, 
-                    patente, 
-                    posActual.getLatitude(), 
-                    posActual.getLongitude(), 
-                    dataLive.getConsumoCombustible(), 
-                    dataLive.getTemperaturaCelsius()
-                );
-
-                // Colocar los indicadores en etiquetas de la interfaz (Labels del Admin)
-                lblLiveCombustible.setText("Combustible: " + String.format("%.1f", dataLive.getConsumoCombustible()) + "%");
-                lblLiveTemperatura.setText("Temperatura Carga: " + dataLive.getTemperaturaCelsius() + "°C");
-
-                // Regla de Negocio RF-13 (Alerta visual en los Labels del admin)
-                if (dataLive.getTemperaturaCelsius() > 5.0) {
-                    lblLiveTemperatura.setForeground(java.awt.Color.RED);
-                    lblLiveEstadoCritico.setText("¡ALERTA TÉRMICA: CADENA DE FRÍO COMPROMETIDA!");
-                } else {
-                    lblLiveTemperatura.setForeground(new java.awt.Color(0, 102, 0));
-                    lblLiveEstadoCritico.setText("Estado: Operación Normal");
-                }
-
-                // Mover la cámara del administrador para seguir al camión y redibujar el mapa
-                mapaViewer.setAddressLocation(posActual);
-                actualizarCapasMapaMonitoreo();
-
-            } else {
-                lblLiveEstadoCritico.setText("El vehículo no registra un viaje activo en este momento.");
-            }
-        });
-
-        timerMonitoreo.start(); // Encender el motor de escucha
-    }
-    
-    private void actualizarCapasMapaMonitoreo() {
-        
-        mapaViewer.setOverlayPainter(null); // Limpia por completo cualquier pintor remanente en el lienzo
-        
-        List<Painter<JXMapViewer>> listaPainters = new ArrayList<>();
-
-        if (waypointCamionMonitoreo != null) {
-            WaypointPainter<Waypoint> waypointPainter = new WaypointPainter<>();
-            waypointPainter.setRenderer(new WaypointRenderer<Waypoint>() {
-                @Override
-                public void paintWaypoint(Graphics2D g, JXMapViewer map, Waypoint wp) {
-                    if (wp instanceof CamionWaypoint) {
-                        CamionWaypoint c = (CamionWaypoint) wp;
-                        Point2D p = map.getTileFactory().geoToPixel(c.getPosition(), map.getZoom());
-                        int x = (int) p.getX();
-                        int y = (int) p.getY();
-
-                        // PINTADO INTELIGENTE (RF-13): Conmuta color según la telemetría térmica
-                        g.setColor(c.getColorEstado()); 
-                        g.fillRect(x - 12, y - 6, 22, 11); // Remolque frigorífico
-                        g.fillRect(x + 10, y - 3, 6, 8);   // Cabina
-
-                        g.setColor(java.awt.Color.BLACK);
-                        g.fillOval(x - 9, y + 5, 4, 4);   // Ruedas
-                        g.fillOval(x + 2, y + 5, 4, 4);
-                        g.fillOval(x + 10, y + 5, 4, 4);
-
-                        g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
-                        g.drawString(c.getPatente() + " (" + c.getTemperatura() + "°C)", x - 20, y - 10);
-                    }
-                }
-            });
-
-            Set<Waypoint> conjunto = new HashSet<>();
-            conjunto.add(waypointCamionMonitoreo);
-            waypointPainter.setWaypoints(conjunto);
-            listaPainters.add(waypointPainter);
-        }
-
-        CompoundPainter<JXMapViewer> compuesto = new CompoundPainter<>(listaPainters);
-        mapaViewer.setOverlayPainter(compuesto);
-        
-        mapaViewer.revalidate();
-        mapaViewer.repaint();
     }
 
     /**
@@ -458,16 +470,17 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jPanel1 = new javax.swing.JPanel();
         panelLateral = new javax.swing.JPanel();
-        txtGpsVinculado = new javax.swing.JTextField();
+        txtDispositivoGps = new javax.swing.JTextField();
         jLabel1 = new javax.swing.JLabel();
-        lblAlertaTermica = new javax.swing.JLabel();
-        txtTiempoRecorrido = new javax.swing.JLabel();
-        lblLiveCombustible = new javax.swing.JLabel();
-        lblLiveEstadoCritico = new javax.swing.JLabel();
-        lblLiveTemperatura = new javax.swing.JLabel();
         jLabel2 = new javax.swing.JLabel();
-        txtGpsVinculado1 = new javax.swing.JTextField();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        tblFlota = new javax.swing.JTable();
+        lblTotalFlota = new javax.swing.JLabel();
+        lblTotalFlota1 = new javax.swing.JLabel();
+        lblTotalFlota2 = new javax.swing.JLabel();
+        lblTotalIncidencias = new javax.swing.JLabel();
         jfxContainer = new javax.swing.JPanel();
+        jLabel3 = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
         jTable1 = new javax.swing.JTable();
@@ -476,78 +489,92 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
         panelLateral.setBorder(javax.swing.BorderFactory.createEtchedBorder());
 
-        txtGpsVinculado.setEditable(false);
-        txtGpsVinculado.setHorizontalAlignment(javax.swing.JTextField.CENTER);
-        txtGpsVinculado.setText("------");
-        txtGpsVinculado.addActionListener(this::txtGpsVinculadoActionPerformed);
+        txtDispositivoGps.setEditable(false);
+        txtDispositivoGps.setHorizontalAlignment(javax.swing.JTextField.CENTER);
+        txtDispositivoGps.setText("------");
+        txtDispositivoGps.addActionListener(this::txtDispositivoGpsActionPerformed);
 
+        jLabel1.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
         jLabel1.setText("Dispositivo GPS:");
 
-        lblAlertaTermica.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        lblAlertaTermica.setText("Estado de Red: Normal");
+        tblFlota.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+                {null, null},
+                {null, null},
+                {null, null},
+                {null, null}
+            },
+            new String [] {
+                "Patente", "N° Serie GPS"
+            }
+        ));
+        tblFlota.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                tblFlotaMouseClicked(evt);
+            }
+        });
+        jScrollPane2.setViewportView(tblFlota);
 
-        txtTiempoRecorrido.setText("TiempoRecorrido");
+        lblTotalFlota.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        lblTotalFlota.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
+        lblTotalFlota.setText("Flota Activa: 0 vehículos");
 
-        lblLiveCombustible.setText("LiveCombustible");
+        lblTotalFlota1.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        lblTotalFlota1.setText("<html><font size='4' color='#0066CC'>■</font> Operación Normal (Cadena de frío estable)</html>");
 
-        lblLiveEstadoCritico.setText("LiveEstadoCritico");
+        lblTotalFlota2.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        lblTotalFlota2.setText("<html><font size='4' color='#FF0000'>■</font> Alerta Crítica (Temperatura &gt; 5°C)</html>");
 
-        lblLiveTemperatura.setText("LiveTemperatura");
-
-        txtGpsVinculado1.setEditable(false);
-        txtGpsVinculado1.setHorizontalAlignment(javax.swing.JTextField.CENTER);
-        txtGpsVinculado1.setText("------");
-        txtGpsVinculado1.addActionListener(this::txtGpsVinculado1ActionPerformed);
+        lblTotalIncidencias.setFont(new java.awt.Font("Segoe UI", 1, 12)); // NOI18N
+        lblTotalIncidencias.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        lblTotalIncidencias.setText("Incidencias: 0 alertas termicas");
 
         javax.swing.GroupLayout panelLateralLayout = new javax.swing.GroupLayout(panelLateral);
         panelLateral.setLayout(panelLateralLayout);
         panelLateralLayout.setHorizontalGroup(
             panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, panelLateralLayout.createSequentialGroup()
-                .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(18, 18, 18)
+                .addComponent(txtDispositivoGps, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(53, 53, 53))
+            .addGroup(panelLateralLayout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(panelLateralLayout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(lblAlertaTermica, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(panelLateralLayout.createSequentialGroup()
-                        .addGap(19, 19, 19)
-                        .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(txtTiempoRecorrido, javax.swing.GroupLayout.PREFERRED_SIZE, 192, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblLiveCombustible, javax.swing.GroupLayout.PREFERRED_SIZE, 192, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblLiveTemperatura, javax.swing.GroupLayout.PREFERRED_SIZE, 192, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblLiveEstadoCritico, javax.swing.GroupLayout.PREFERRED_SIZE, 192, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addGroup(panelLateralLayout.createSequentialGroup()
-                                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(txtGpsVinculado, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, panelLateralLayout.createSequentialGroup()
-                                .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(txtGpsVinculado1, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                        .addGap(0, 9, Short.MAX_VALUE)))
-                .addContainerGap())
+                        .addGap(0, 15, Short.MAX_VALUE)
+                        .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(192, 192, 192))
+                    .addComponent(lblTotalFlota1)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, panelLateralLayout.createSequentialGroup()
+                        .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addComponent(lblTotalIncidencias, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jScrollPane2, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE)
+                            .addComponent(lblTotalFlota, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                        .addContainerGap())
+                    .addComponent(lblTotalFlota2)))
         );
         panelLateralLayout.setVerticalGroup(
             panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(panelLateralLayout.createSequentialGroup()
-                .addContainerGap()
+                .addGap(10, 10, 10)
+                .addComponent(lblTotalFlota1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(lblTotalFlota2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jLabel2)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel1)
-                    .addComponent(txtGpsVinculado, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(txtDispositivoGps, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addGap(18, 18, 18)
-                .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel2)
-                    .addComponent(txtGpsVinculado1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGap(87, 87, 87)
-                .addComponent(txtTiempoRecorrido)
-                .addGap(21, 21, 21)
-                .addComponent(lblLiveEstadoCritico)
-                .addGap(18, 18, 18)
-                .addComponent(lblLiveCombustible)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(lblLiveTemperatura)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 204, Short.MAX_VALUE)
-                .addComponent(lblAlertaTermica)
-                .addContainerGap())
+                .addComponent(lblTotalFlota, javax.swing.GroupLayout.PREFERRED_SIZE, 16, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 196, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(lblTotalIncidencias)
+                .addContainerGap(169, Short.MAX_VALUE))
         );
 
         jfxContainer.setBorder(javax.swing.BorderFactory.createEtchedBorder());
@@ -564,31 +591,40 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         );
         jfxContainerLayout.setVerticalGroup(
             jfxContainerLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 0, Short.MAX_VALUE)
+            .addGap(0, 529, Short.MAX_VALUE)
         );
+
+        jLabel3.setFont(new java.awt.Font("Segoe UI", 1, 24)); // NOI18N
+        jLabel3.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel3.setText("PANEL DE LOGÍSTICA EN TIEMPO REAL");
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel1Layout.createSequentialGroup()
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(panelLateral, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jfxContainer, javax.swing.GroupLayout.PREFERRED_SIZE, 612, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addComponent(jLabel3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(panelLateral, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jfxContainer, javax.swing.GroupLayout.PREFERRED_SIZE, 612, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap())
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addContainerGap()
+                .addGap(17, 17, 17)
+                .addComponent(jLabel3)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(jfxContainer, javax.swing.GroupLayout.DEFAULT_SIZE, 500, Short.MAX_VALUE)
+                    .addComponent(jfxContainer, javax.swing.GroupLayout.DEFAULT_SIZE, 533, Short.MAX_VALUE)
                     .addComponent(panelLateral, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGap(15, 15, 15))
         );
 
-        jTabbedPane1.addTab("tab1", jPanel1);
+        jTabbedPane1.addTab("Logística", jPanel1);
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -610,17 +646,17 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             .addGroup(jPanel2Layout.createSequentialGroup()
                 .addGap(20, 20, 20)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 856, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(20, Short.MAX_VALUE))
+                .addContainerGap(95, Short.MAX_VALUE))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
-                .addContainerGap(78, Short.MAX_VALUE)
+                .addContainerGap(176, Short.MAX_VALUE)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap())
         );
 
-        jTabbedPane1.addTab("tab2", jPanel2);
+        jTabbedPane1.addTab("Registros", jPanel2);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -630,19 +666,55 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 546, javax.swing.GroupLayout.PREFERRED_SIZE)
+            .addGroup(layout.createSequentialGroup()
+                .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 592, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private void txtGpsVinculadoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtGpsVinculadoActionPerformed
+    private void txtDispositivoGpsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtDispositivoGpsActionPerformed
         // TODO add your handling code here:
-    }//GEN-LAST:event_txtGpsVinculadoActionPerformed
+    }//GEN-LAST:event_txtDispositivoGpsActionPerformed
 
-    private void txtGpsVinculado1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtGpsVinculado1ActionPerformed
+    private void tblFlotaMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_tblFlotaMouseClicked
         // TODO add your handling code here:
-    }//GEN-LAST:event_txtGpsVinculado1ActionPerformed
+        int fila = tblFlota.getSelectedRow();
+        if (fila == -1) return;
+
+        // 1. Extraer la patente (Columna 0) para mover el mapa
+        String patenteSeleccionada = tblFlota.getValueAt(fila, 0).toString();
+
+        // 2. Extraer el Número de Serie Real (Columna 1) para el JTextField
+        String snSeleccionado = tblFlota.getValueAt(fila, 1).toString();
+
+        // Asignar el S/N verdadero al cajón de texto (Asegúrate de poner el nombre de tu variable JTextField)
+        txtDispositivoGps.setText(snSeleccionado);
+
+        // 2. Buscar en la lista de marcadores activos del mapa las coordenadas de esa patente
+        for (Waypoint wp : listaWaypoints) {
+            if (wp instanceof CamionWaypoint) {
+                CamionWaypoint camion = (CamionWaypoint) wp;
+
+                if (camion.getPatente().equalsIgnoreCase(patenteSeleccionada)) {
+
+                    // ASIGNACIÓN CLAVE: Activamos su ID de forma global para que el paintWaypoint dibuje su panel
+                    idGpsSeleccionado = camion.getIdGps();
+
+                    // Actualizar tu JTextField lateral si lo sigues ocupando
+                    txtDispositivoGps.setText(String.valueOf(camion.getIdGps()));
+
+                    // ENFOQUE NATIVO: Movemos de inmediato la cámara del mapa sobre la posición en vivo del camión
+                    mapaViewer.setAddressLocation(camion.getPosition());
+
+                    // Forzar el redibujado para que aparezca la ventanita blanca al instante
+                    mapaViewer.repaint();
+                    break;
+                }
+            }
+        }
+    }//GEN-LAST:event_tblFlotaMouseClicked
 
     /**
      * @param args the command line arguments
@@ -672,20 +744,21 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JTabbedPane jTabbedPane1;
     private javax.swing.JTable jTable1;
     private javax.swing.JPanel jfxContainer;
-    private javax.swing.JLabel lblAlertaTermica;
-    private javax.swing.JLabel lblLiveCombustible;
-    private javax.swing.JLabel lblLiveEstadoCritico;
-    private javax.swing.JLabel lblLiveTemperatura;
+    private javax.swing.JLabel lblTotalFlota;
+    private javax.swing.JLabel lblTotalFlota1;
+    private javax.swing.JLabel lblTotalFlota2;
+    private javax.swing.JLabel lblTotalIncidencias;
     private javax.swing.JPanel panelLateral;
-    private javax.swing.JTextField txtGpsVinculado;
-    private javax.swing.JTextField txtGpsVinculado1;
-    private javax.swing.JLabel txtTiempoRecorrido;
+    private javax.swing.JTable tblFlota;
+    private javax.swing.JTextField txtDispositivoGps;
     // End of variables declaration//GEN-END:variables
     private final java.util.Set<org.jxmapviewer.viewer.Waypoint> listaWaypoints = new java.util.HashSet<>();
 }

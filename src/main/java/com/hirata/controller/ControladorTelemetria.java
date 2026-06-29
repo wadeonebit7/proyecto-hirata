@@ -22,56 +22,44 @@ public class ControladorTelemetria implements Runnable {
     private final Random random;
     
     // VARIABLES DE CONTROL DINÁMICO
-    private final List<GeoPosition> rutaRealCalles; // Aquí se guardan las calles de OpenStreetMap
+    private final List<GeoPosition> rutaRealCalles; 
     private boolean enRuta;
     private double combustibleActual;
     private double temperaturaCarga;
     private String patente;
     
-    // Coordenadas geográficas reales de Iquique para la simulación
-    // Origen: Cavancha (-20.23126, -70.15053) -> Destino: ZOFRI (-20.20521, -70.13425)
+    private boolean alertaActiva = false;
+    
     private double latActual = -20.23126000;
     private double lonActual = -70.15053000;
     private double latDestino = -20.20521000;
     private double lonDestino = -70.13425000;
 
-    /**
-     * Constructor del emulador de telemetría.
-     */
     public ControladorTelemetria(int idCamion, List<GeoPosition> rutaCalculada) {
         this.idCamion = idCamion;
         this.dao = new TelemetriaDAO();
-        this.idGps = this.dao.obtenerIdGpsPorCamion(idCamion); // Buscamos el GPS asociado al camión en la base de datos
+        this.idGps = this.dao.obtenerIdGpsPorCamion(idCamion); 
         this.rutaRealCalles = rutaCalculada;
         this.random = new Random();
         this.enRuta = false;
-        this.combustibleActual = 100.0; // Parte con estanque lleno
-        this.temperaturaCarga = 2.5;    // Temperatura inicial segura (RF-13)
+        this.combustibleActual = 100.0; 
+        this.temperaturaCarga = 3.5; // Ajustado a valor óptimo de carga inicial
         
-        // Inicializar las coordenadas con el punto de partida exacto
         if (rutaCalculada != null && !rutaCalculada.isEmpty()) {
-            // El punto inicial donde aparece el camión
             GeoPosition puntoInicio = rutaCalculada.get(0);
             this.latActual = puntoInicio.getLatitude();
             this.lonActual = puntoInicio.getLongitude();
 
-            // El punto final a donde se dirige
             GeoPosition puntoFinal = rutaCalculada.get(rutaCalculada.size() - 1);
             this.latDestino = puntoFinal.getLatitude();
             this.lonDestino = puntoFinal.getLongitude();
         }
     }
 
-    /**
-     * Detiene el hilo de simulación de forma segura.
-     */
     public void detenerSimulacion() {
         this.enRuta = false;
     }
 
-    /**
-     * Ciclo de vida asíncrono del hilo en segundo plano (Thread).
-     */
     @Override
     public void run() {
         if (idGps == -1 || rutaRealCalles == null || rutaRealCalles.isEmpty()) {
@@ -87,41 +75,63 @@ public class ControladorTelemetria implements Runnable {
                 // 1. Conseguir el nodo de la calle actual
                 GeoPosition coordenadaCalle = rutaRealCalles.get(pasoActual);
                 
-                // =========================================================================
-                // CRÍTICO: ASIGNAR DIRECTO A LAS VARIABLES DE LA CLASE (SIN EL "double")
-                // Si pones "double latActual", estás creando una variable local y el mapa no se entera.
-                // =========================================================================
-                // ACTUALIZACIÓN DE NUESTROS ATRIBUTOS DINÁMICOS
+                // Actualización de coordenadas globales para el mapa
                 this.latActual = coordenadaCalle.getLatitude();
                 this.lonActual = coordenadaCalle.getLongitude();
                 
-                // Simulación de desgaste de combustible y temperatura (RF-11, RF-13)
-                combustibleActual -= 0.1 + (random.nextDouble() * 0.05);
-                if (combustibleActual < 0) combustibleActual = 0;
-                
-                if (pasoActual >= 15) {
-                    this.temperaturaCarga = 6.4; // Simula alerta térmica para la defensa
-                } else {
-                    this.temperaturaCarga = 2.5 + (random.nextDouble() * 0.4); 
+                // El combustible SIEMPRE disminuye un poco en cada nodo (gasto en carretera)
+                if (this.combustibleActual > 0.0) {
+                    this.combustibleActual -= 0.05 + (random.nextDouble() * 0.05); // Gasto real continuo
+                    if (this.combustibleActual < 0) this.combustibleActual = 0.0;
                 }
+                
+                // La temperatura SIEMPRE fluctúa con un pequeño ruido matemático (+/- 0.2°C)
+                // Esto hace que si inyectas 8.0°C con el slider, en el próximo segundo varíe a 8.1°C, 7.9°C, etc.
+                double ruidoTermico = (random.nextDouble() - 0.5) * 0.4; 
+                this.temperaturaCarga = this.temperaturaCarga + ruidoTermico;
+                
+                // Opcional: Mantener la temperatura en un rango lógico si no ha sido forzada por el slider
+                // (Por ejemplo, si baja demasiado o sube demasiado sola, la estabilizamos un poco)
+                if (this.temperaturaCarga < -5.0) this.temperaturaCarga = -5.0;
+                if (this.temperaturaCarga > 25.0) this.temperaturaCarga = 25.0;
 
-                // Empaquetar la telemetría para MySQL
+                // =========================================================================
+                // EMPAQUETADO EXACTO HACIA LA BASE DE DATOS (REPARADO)
+                // =========================================================================
                 TelemetriaRuta telemetria = new TelemetriaRuta();
                 telemetria.setIdGpsFk(idGps);
-                telemetria.setLatitud(this.latActual);   // Enviamos el valor global
+                telemetria.setLatitud(this.latActual); 
                 telemetria.setLongitud(this.lonActual);
-                telemetria.setConsumoCombustible(combustibleActual);
-                telemetria.setTemperaturaCelsius(this.temperaturaCarga);
-
+                telemetria.setConsumoCombustible(this.combustibleActual);
+                telemetria.setTemperaturaMotor(this.temperaturaCarga);
+                
                 // Insertar en la Base de Datos de Hirata
                 dao.insertarLecturaRuta(telemetria);
                 
-                System.out.println("[Sensor-IoT] Avanzando por calle. Nodo " + (pasoActual + 1) + " de " + rutaRealCalles.size());
+                // Si la temperatura supera los 5.0°C, se crea un registro de incidente en la tabla de control
+                if (this.temperaturaCarga > 5.0) {
+                    if (!alertaActiva) {
+                        // CASO A: Cruza el límite por primera vez. Se gatilla el registro en MySQL.
+                        dao.insertarAlertaTemperatura(idGps, this.temperaturaCarga);
+                        System.out.println("🚨 [ALERTA IOT] ¡Cadena de frío rota! Registro único insertado en control_temperatura_carga: " + String.format("%.1f", this.temperaturaCarga) + "°C.");
+                        
+                        alertaActiva = true; // Se enciende el candado para bloquear las ráfagas siguientes
+                    }
+                    // Si 'alertaActiva' ya es true, entra aquí pero no hace nada, ignorando los duplicados
+                } else {
+                    if (alertaActiva) {
+                        // CASO B: La temperatura regresó a niveles seguros. Se libera el candado.
+                        System.out.println("✅ [IoT-Restablecido] Temperatura normalizada. Sensor rearmado para futuras alertas.");
+                        
+                        alertaActiva = false; // Permite que un próximo exceso vuelva a generar una inserción
+                    }
+                }
+                
+                System.out.println("[Sensor-IoT] Guardando en MySQL -> Nodo " + (pasoActual + 1) + " | Gas: " + String.format("%.1f%%", combustibleActual) + " | Temp: " + String.format("%.1f°C", temperaturaCarga));
 
-                // Avanzar al siguiente nodo vial
+                // Avanzar con el salto de nodos veloz optimizado
                 pasoActual += 4;
                 
-                // Esperar 3 segundos para sincronizar con el Timer de la vista
                 Thread.sleep(3000); 
 
             } catch (InterruptedException e) {
@@ -134,11 +144,23 @@ public class ControladorTelemetria implements Runnable {
         this.enRuta = false;
     }
 
-    // Getters auxiliares para verificar estados desde las vistas
     public boolean isEnRuta() { return enRuta; }
     public void setPatente (String patente) { this.patente = patente; }
     public double getLatActual() { return this.latActual; }
     public double getLonActual() { return this.lonActual; }
     public double getCombustibleActual() { return this.combustibleActual; }
     public double getTemperaturaCarga() { return this.temperaturaCarga; }
+    
+    // Los Setters ahora solo inyectan el dato y NO congelan la simulación
+    public void setCombustibleActual(double combustibleActual) { this.combustibleActual = combustibleActual; }
+    public void setTemperaturaCarga(double temperaturaCarga) { this.temperaturaCarga = temperaturaCarga; }
+    
+    
+    public void iniciarCombustibleSimulacion(double combustible) {
+        this.combustibleActual = combustible;
+    }
+
+    public void iniciarTemperaturaSimulacion(double temperatura) {
+        this.temperaturaCarga = temperatura;
+    }
 }

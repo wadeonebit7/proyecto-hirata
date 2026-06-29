@@ -18,13 +18,17 @@ public class TelemetriaRuta {
     private double latitud;
     private double longitud;
     private double consumoCombustible;
-    private int temperaturaMotor;
+    private double temperaturaMotor;
     private double temperaturaCelsius; // Atributo para el control de cadena de frío (RF-13)
+    
+    private String nombreChofer;
     
     private String marcaCamion;
     private String modeloCamion;
     
     private int segundosAtras;
+    
+    private String numeroSerieGps;
     
 
     // Constructor vacío
@@ -32,7 +36,7 @@ public class TelemetriaRuta {
 
     // Constructor completo para uso en DAOs y Emuladores
     public TelemetriaRuta(int id, int idGpsFk, String patente, Timestamp fechaHora, double latitud, double longitud, 
-                          double consumoCombustible, int temperaturaMotor, double temperaturaCelsius) {
+                          double consumoCombustible, double temperaturaMotor, double temperaturaCelsius) {
         this.id = id;
         this.idGpsFk = idGpsFk;
         this.patente = patente;
@@ -78,9 +82,18 @@ public class TelemetriaRuta {
     public double getConsumoCombustible() { return consumoCombustible; }
     public void setConsumoCombustible(double consumoCombustible) { this.consumoCombustible = consumoCombustible; }
 
-    public int getTemperaturaMotor() { return temperaturaMotor; }
-    public void setTemperaturaMotor(int temperaturaMotor) { this.temperaturaMotor = temperaturaMotor; }
+    
+    public double getTemperaturaMotor() { return temperaturaMotor; }
+    public void setTemperaturaMotor(double temperaturaMotor) { this.temperaturaMotor = temperaturaMotor; }
 
     public double getTemperaturaCelsius() { return temperaturaCelsius; }
     public void setTemperaturaCelsius(double temperaturaCelsius) { this.temperaturaCelsius = temperaturaCelsius; }
+    
+    
+    public String getNombreChofer() { return nombreChofer; }
+    public void setNombreChofer(String nombreChofer) { this.nombreChofer = nombreChofer; }
+    
+    
+    public String getNumeroSerieGps() { return numeroSerieGps; }
+    public void setNumeroSerieGps(String numeroSerieGps) { this.numeroSerieGps = numeroSerieGps; }
 }

@@ -33,7 +33,7 @@ public class TelemetriaDAO {
             ps.setDouble(2, t.getLatitud());
             ps.setDouble(3, t.getLongitud());
             ps.setDouble(4, t.getConsumoCombustible());
-            ps.setInt(5, t.getTemperaturaMotor());
+            ps.setDouble(5, t.getTemperaturaMotor());
             
             return ps.executeUpdate() > 0;
             
@@ -89,22 +89,20 @@ public class TelemetriaDAO {
     public List<TelemetriaRuta> listarUltimasPosicionesFlota() {
         List<TelemetriaRuta> lista = new ArrayList<>();
         
-        // Query optimizada: Agregamos el cálculo de segundos de antigüedad individual directamente en MySQL
-    String sql = "SELECT tr.*, c.patente, c.marca, c.modelo, "
-               + "       TIMESTAMPDIFF(SECOND, tr.fecha_hora, NOW()) AS segundos_atras, " // <-- Clave para independizar camiones
-               + "       (SELECT tc.temperatura_celsius "
-               + "        FROM control_temperatura_carga tc "
-               + "        WHERE tc.id_gps_fk = tr.id_gps_fk "
-               + "        ORDER BY tc.id DESC LIMIT 1) AS ultima_temp "
-               + "FROM telemetria_ruta tr "
-               + "INNER JOIN camiones AS c ON c.id = (SELECT id_camion_fk FROM dispositivos_gps WHERE id = tr.id_gps_fk) "
-               + "INNER JOIN ( "
-               + "    SELECT id_gps_fk, MAX(id) AS max_id "
-               + "    FROM telemetria_ruta "
-               + "    GROUP BY id_gps_fk "
-               + ") sub ON tr.id = sub.max_id "
-               + "INNER JOIN dispositivos_gps g ON tr.id_gps_fk = g.id "
-               + "WHERE g.estado = 1";
+        // Query optimizada: Agregamos el JOIN con Personal y eliminamos subconsultas innecesarias
+        String sql = "SELECT tr.*, c.patente, c.marca, c.modelo, g.numero_serie, "
+                   + "       CONCAT(p.nombre, ' ', p.apellido) AS chofer_completo, " // <-- Captura Chofer
+                   + "       TIMESTAMPDIFF(SECOND, tr.fecha_hora, NOW()) AS segundos_atras " 
+                   + "FROM telemetria_ruta tr "
+                   + "INNER JOIN dispositivos_gps g ON tr.id_gps_fk = g.id "
+                   + "INNER JOIN camiones c ON g.id_camion_fk = c.id "
+                   + "INNER JOIN personal p ON c.id_personal_fk = p.id " // <-- Unimos al conductor
+                   + "INNER JOIN ( "
+                   + "    SELECT id_gps_fk, MAX(id) AS max_id "
+                   + "    FROM telemetria_ruta "
+                   + "    GROUP BY id_gps_fk "
+                   + ") sub ON tr.id = sub.max_id "
+                   + "WHERE g.estado = 1";
         
         try (Connection con = MySQLConexion.getConexion();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -115,20 +113,19 @@ public class TelemetriaDAO {
                 t.setId(rs.getInt("id"));
                 t.setIdGpsFk(rs.getInt("id_gps_fk"));
                 t.setPatente(rs.getString("patente"));
-                // Mapeamos los nuevos campos del camión al DTO
                 t.setMarcaCamion(rs.getString("marca"));
                 t.setModeloCamion(rs.getString("modelo"));
                 t.setFechaHora(rs.getTimestamp("fecha_hora"));
                 t.setLatitud(rs.getDouble("latitud"));
                 t.setLongitud(rs.getDouble("longitud"));
                 t.setConsumoCombustible(rs.getDouble("consumo_combustible"));
-                t.setTemperaturaMotor(rs.getInt("temperatura_motor"));
-                t.setTemperaturaCelsius(rs.getDouble("ultima_temp")); // Cadena de frío
-                
-                // =========================================================================
-                // Asignación semántica de la antigüedad del reporte
-                // =========================================================================
                 t.setSegundosAtras(rs.getInt("segundos_atras"));
+                t.setNombreChofer(rs.getString("chofer_completo")); 
+                
+                // CORRECCIÓN DECIMAL: Usar getDouble para no perder los decimales de MySQL
+                t.setTemperaturaMotor(rs.getDouble("temperatura_motor")); 
+                
+                t.setNumeroSerieGps(rs.getString("numero_serie"));
                 
                 lista.add(t);
             }
@@ -139,7 +136,7 @@ public class TelemetriaDAO {
         
         return lista;
     }
-
+    
     /**
      * Auxiliar de Selección: Busca el ID interno del dispositivo GPS asignado a un camión específico.
      */
@@ -237,6 +234,23 @@ public class TelemetriaDAO {
             System.err.println("Error en el monitoreo administrativo IoT: " + e.getMessage());
         }
         return null; // Si el camión no ha iniciado ningún viaje o no tiene registros
+    }
+    
+    // Método exclusivo para registrar rupturas en la cadena de frío (RF-13)
+    public void insertarAlertaTemperatura(int idGps, double temperaturaCritica) {
+        String sql = "INSERT INTO control_temperatura_carga (id_gps_fk, fecha_hora, temperatura_celsius) VALUES (?, NOW(), ?)";
+        
+        try (java.sql.Connection con = com.hirata.model.MySQLConexion.getConexion();
+             java.sql.PreparedStatement ps = con.prepareStatement(sql)) {
+            
+            ps.setInt(1, idGps);
+            ps.setDouble(2, temperaturaCritica); // Pasamos el decimal exacto del exceso
+            
+            ps.executeUpdate();
+            
+        } catch (java.sql.SQLException e) {
+            System.err.println("Error en TelemetriaDAO -> insertarAlertaTemperatura: " + e.getMessage());
+        }
     }
 }
 
