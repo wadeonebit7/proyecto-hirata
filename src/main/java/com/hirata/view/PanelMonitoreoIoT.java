@@ -258,9 +258,16 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             int contadorAlertasTermicas = 0;
             
             for (TelemetriaRuta t : flotaActiva) {
+                
+                // 1. Determinar el estado lógico en tiempo real (margen de 15 segundos)
+                boolean estaActivoAhora = (t.getSegundosAtras() >= 0 && t.getSegundosAtras() <= 15);
+                String estadoTexto = estaActivoAhora ? "Online" : "Offline";
+                
+                // 2. Llenar las 3 columnas exactas de tu JTable
                 modeloTabla.addRow(new Object[]{
                     t.getPatente(),
-                    t.getNumeroSerieGps() // Mostramos el número de serie del hardware
+                    t.getNumeroSerieGps(), 
+                    estadoTexto 
                 });
                 
                 // EVALUACIÓN EN TIEMPO REAL: Si el camión actual excede los 5.0°C, sumamos una incidencia
@@ -269,9 +276,6 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 }
             }
             
-            // =========================================================================
-            // NUEVO: ACTUALIZACIÓN DINÁMICA DE LOS LABELS DE RESUMEN OPERATIVO (KPIs)
-            // =========================================================================
             lblTotalFlota.setText("Flota Activa: " + flotaActiva.size() + " vehículos.");
             lblTotalIncidencias.setText("Incidencias: " + contadorAlertasTermicas + " alertas térmicas.");
             
@@ -287,29 +291,20 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             if (filaSeleccionada != -1 && filaSeleccionada < tblFlota.getRowCount()) {
                 tblFlota.setRowSelectionInterval(filaSeleccionada, filaSeleccionada);
             }
-
-            // 1. Limpiar y rellenar los marcadores de la flota activa en el mapa
+            
             listaWaypoints.clear();
             for (TelemetriaRuta t : flotaActiva) {
-                
-                // 1. Determinar el estado lógico en tiempo real (margen de 15 segundos)
-                boolean estaActivoAhora = (t.getSegundosAtras() >= 0 && t.getSegundosAtras() <= 15);
-                String estadoTexto = estaActivoAhora ? "Online" : "Offline";
-                
-                // 2. Llenar las 3 columnas exactas de tu JTable
-                modeloTabla.addRow(new Object[]{
-                    t.getPatente(),
-                    t.getNumeroSerieGps(), 
-                    estadoTexto // <-- NUEVO: Agregamos el estado a la tercera columna
-                });
-                
-                // EVALUACIÓN EN TIEMPO REAL: Si el camión actual excede los 5.0°C, sumamos una incidencia
-                if (t.getTemperaturaMotor() > 5.0) {
-                    contadorAlertasTermicas++;
-                }
+                listaWaypoints.add(new CamionWaypoint(
+                        t.getIdGpsFk(), 
+                        t.getPatente(), 
+                        t.getLatitud(), 
+                        t.getLongitud(), 
+                        t.getConsumoCombustible(), 
+                        t.getTemperaturaMotor() 
+                ));
             }
 
-            // 2. Pintor de los iconos de los camiones y panel flotante de datos expandido
+            // Pintor de los iconos de los camiones y panel flotante de datos expandido
             WaypointPainter<Waypoint> waypointPainter = new WaypointPainter<>();
             waypointPainter.setRenderer(new WaypointRenderer<Waypoint>() {
                 @Override
@@ -320,24 +315,15 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         int x = (int) p.getX();
                         int y = (int) p.getY();
 
-                        // CONMUTACIÓN DE IMÁGENES EN TIEMPO REAL (REEMPLAZA LOS RECTÁNGULOS)
-                        // Si las imágenes se cargaron con éxito, las pintamos alternando según la temperatura
+                        // CONMUTACIÓN DE IMÁGENES EN TIEMPO REAL
                         if (imgCamionAzul != null && imgCamionRojo != null) {
-
-                            // Si la temperatura excede los 5.0°C, elegimos el camión rojo, sino el azul
                             java.awt.Image imagenAQuemar = (c.getTemperatura() > 5.0) ? imgCamionRojo : imgCamionAzul;
-
-                            // Dibujamos el PNG centrado en la coordenada GPS (Ancho: 32, Alto: 16)
-                            // Restamos la mitad del tamaño (x - 16, y - 8) para que el centro de la imagen coincida con el punto exacto
                             g.drawImage(imagenAQuemar, x - 16, y - 8, 48, 24, null);
-
                         } else {
-                            // SISTEMA DE RESPALDO (Fallback): Si los archivos PNG no existen, dibuja los rectángulos originales
-                            // Esto evita que el mapa quede vacío si hay problemas con las rutas de los archivos
+                            // Fallback (Rectángulos)
                             g.setColor(c.getColorEstado()); 
                             g.fillRect(x - 12, y - 6, 22, 11); 
                             g.fillRect(x + 10, y - 3, 6, 8);   
-
                             g.setColor(Color.BLACK);
                             g.fillOval(x - 9, y + 5, 4, 4);    
                             g.fillOval(x + 2, y + 5, 4, 4);
@@ -349,9 +335,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         g.setColor(Color.BLACK);
                         g.drawString("S/N: " + c.getIdGps(), x - 15, y - 12);
 
-                        // =========================================================================
                         // RENDERIZADO DEL PANEL FLOTANTE EN TIEMPO REAL
-                        // =========================================================================
                         if (c.getIdGps() == idGpsSeleccionado) {
                             TelemetriaRuta infoCamion = null;
                             for (TelemetriaRuta t : flotaActiva) {
@@ -362,7 +346,6 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                             }
 
                             if (infoCamion != null) {
-                                // Aumentamos levemente el alto a 130 para dar espacio a la fila de la patente sin colapsar textos
                                 int anchoPanel = 220; 
                                 int altoPanel = 145;
                                 int panelX = x - (anchoPanel / 2); 
@@ -370,11 +353,9 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
                                 g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-                                // Fondo blanco semitransparente
+                                // Fondo blanco y borde
                                 g.setColor(new Color(255, 255, 255, 240));
                                 g.fillRoundRect(panelX, panelY, anchoPanel, altoPanel, 10, 10);
-
-                                // Borde de alerta térmica dinámico
                                 g.setColor((c.getTemperatura() > 5.0) ? Color.RED : new Color(50, 50, 50));
                                 g.setStroke(new java.awt.BasicStroke(1.8f));
                                 g.drawRoundRect(panelX, panelY, anchoPanel, altoPanel, 10, 10);
@@ -382,66 +363,53 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                                 int posXText = panelX + 12;
                                 int posYText = panelY + 16;
 
-                                // Encabezado principal
+                                // Textos
                                 g.setColor(Color.BLACK);
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 11));
                                 g.drawString("TELEMETRÍA EN VIVO", posXText, posYText);
 
-                                // Separador visual fino
                                 g.setColor(new Color(200, 200, 200));
                                 g.drawLine(panelX + 10, panelY + 22, panelX + anchoPanel - 10, panelY + 22);
 
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 10));
                                 g.setColor(new Color(30, 30, 30));
 
-                                // 1. Datos de Identificación (CORREGIDO: Coordenadas Y secuenciales)
                                 String vehiculoInfo = (infoCamion.getMarcaCamion() != null) ? (infoCamion.getMarcaCamion() + " " + infoCamion.getModeloCamion()) : "Vehículo Desconocido";
                                 g.drawString("Vehículo: " + vehiculoInfo, posXText, posYText + 16);
                                 g.drawString("Patente: " + c.getPatente(), posXText, posYText + 28);
                                 
-                                // Mostrar Conductor
                                 String choferAsignado = (infoCamion.getNombreChofer() != null) ? infoCamion.getNombreChofer() : "Sin Chofer";
                                 g.drawString("Chofer: " + choferAsignado, posXText, posYText + 40);
-                                
-                                // 2. Coordenadas Geográficas
                                 g.drawString("Lat: " + String.format("%.6f", c.getPosition().getLatitude()) + " | Lon: " + String.format("%.6f", c.getPosition().getLongitude()), posXText, posYText + 53);
 
-                                // ===================== 3. Estado del GPS con Lógica Temporal Global =========================
                                 g.drawString("Estado GPS: ", posXText, posYText + 66);
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
 
                                 boolean estaActivoAhora = (infoCamion.getSegundosAtras() >= 0 && infoCamion.getSegundosAtras() <= 15);
 
                                 if (estaActivoAhora) {
-                                    g.setColor(new Color(0, 153, 51)); // Verde
+                                    g.setColor(new Color(0, 153, 51)); 
                                     g.drawString("ONLINE", posXText + 58, posYText + 66);
                                 } else {
-                                    g.setColor(new Color(230, 126, 34)); // Gris
+                                    g.setColor(new Color(230, 126, 34)); 
                                     g.drawString("Ahorro de Energía", posXText + 58, posYText + 66);
                                 }
 
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 10));
                                 g.setColor(new Color(30, 30, 30));
-                                // ===========================================================================================
                                 
-                                // 4. Combustible y Temperatura de Carga
                                 g.drawString("Combustible: " + String.format("%.1f%%", infoCamion.getConsumoCombustible()), posXText, posYText + 79);
 
-                                // Extraemos el valor de la columna mapeada
                                 double tempReal = infoCamion.getTemperaturaMotor();
-
-                                // Si la temperatura de la carga supera el límite crítico del RF-13 (5°C), se pinta en rojo
                                 if (tempReal > 5.0) {
                                     g.setColor(Color.RED);
                                     g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
                                 }
                                 g.drawString("Temp. Carga: " + String.format("%.1f°C", tempReal), posXText, posYText + 92);
 
-                                // Restablecer color estándar
                                 g.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 10));
                                 g.setColor(new Color(30, 30, 30));
 
-                                // 5. Fecha y Hora de la última ráfaga procesada
                                 String textoFechaHora = "Buscando satélite...";
                                 if (infoCamion.getFechaHora() != null) {
                                     java.text.SimpleDateFormat sdfVisual = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
@@ -560,6 +528,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         jLabel5 = new javax.swing.JLabel();
         lblTotalAlertas = new javax.swing.JLabel();
         btnActualizar = new javax.swing.JButton();
+        btnExportarPDF = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
@@ -739,6 +708,9 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         btnActualizar.setText("Actualizar Informes");
         btnActualizar.addActionListener(this::btnActualizarActionPerformed);
 
+        btnExportarPDF.setText("Exportar Reporte a PDF");
+        btnExportarPDF.addActionListener(this::btnExportarPDFActionPerformed);
+
         javax.swing.GroupLayout PanelInformesLayout = new javax.swing.GroupLayout(PanelInformes);
         PanelInformes.setLayout(PanelInformesLayout);
         PanelInformesLayout.setHorizontalGroup(
@@ -762,6 +734,8 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             .addGroup(PanelInformesLayout.createSequentialGroup()
                 .addGap(20, 20, 20)
                 .addComponent(jLabel4)
+                .addGap(51, 51, 51)
+                .addComponent(btnExportarPDF, javax.swing.GroupLayout.PREFERRED_SIZE, 203, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(btnActualizar, javax.swing.GroupLayout.PREFERRED_SIZE, 227, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(53, 53, 53))
@@ -775,7 +749,9 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         .addComponent(jLabel4))
                     .addGroup(PanelInformesLayout.createSequentialGroup()
                         .addGap(37, 37, 37)
-                        .addComponent(btnActualizar)))
+                        .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(btnActualizar)
+                            .addComponent(btnExportarPDF))))
                 .addGap(87, 87, 87)
                 .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel5)
@@ -866,6 +842,240 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         javax.swing.JOptionPane.showMessageDialog(this, "Informes actualizados con éxito desde la base de datos.");
     }//GEN-LAST:event_btnActualizarActionPerformed
 
+    private void btnExportarPDFActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnExportarPDFActionPerformed
+        // TODO add your handling code here:
+        generarReportePDF();
+    }//GEN-LAST:event_btnExportarPDFActionPerformed
+    
+    private void generarReportePDF() {
+        javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
+        fileChooser.setDialogTitle("Guardar Dashboard Gerencial PDF");
+        fileChooser.setSelectedFile(new java.io.File("Dashboard_Logistica_Hirata.pdf")); 
+        
+        if (fileChooser.showSaveDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
+            String rutaFichero = fileChooser.getSelectedFile().getAbsolutePath();
+            if (!rutaFichero.toLowerCase().endsWith(".pdf")) rutaFichero += ".pdf";
+            
+            try {
+                // 1. Configurar documento A4 Vertical
+                com.itextpdf.text.Document documento = new com.itextpdf.text.Document(com.itextpdf.text.PageSize.A4); 
+                com.itextpdf.text.pdf.PdfWriter.getInstance(documento, new java.io.FileOutputStream(rutaFichero));
+                documento.open();
+                
+                // 2. Fuentes Profesionales
+                com.itextpdf.text.Font fTitulo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 20, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(0, 51, 102));
+                com.itextpdf.text.Font fSubtitulo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 13, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(50, 50, 50));
+                com.itextpdf.text.Font fKpiVal = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 16, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(0, 102, 204));
+                com.itextpdf.text.Font fKpiTit = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.NORMAL, com.itextpdf.text.BaseColor.DARK_GRAY);
+                com.itextpdf.text.Font fTablaCabecera = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 10, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.WHITE);
+                com.itextpdf.text.Font fTablaDato = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.NORMAL);
+                
+                // 3. Encabezado Oficial
+                documento.add(new com.itextpdf.text.Paragraph("DASHBOARD GERENCIAL DE FLOTA", fTitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Transportes Hirata S.A. - Análisis de Telemetría IoT", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Generado el: " + new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(new java.util.Date())));
+                documento.add(new com.itextpdf.text.Paragraph("\n"));
+                
+                // ==========================================================
+                // MOTOR DE CÁLCULO DE KPIs (INTELIGENCIA DE NEGOCIOS)
+                // ==========================================================
+                int totalViajes = tblRendimiento.getRowCount();
+                double combustibleGlobal = 0.0;
+                int alertasGlobales = 0;
+                int vehiculosEnRiesgo = 0;
+                
+                // Mapa para agrupar estadísticas por patente: [0]Viajes, [1]SumaGas, [2]SumaAlertas
+                java.util.Map<String, double[]> statsVehiculos = new java.util.HashMap<>();
+                
+                for (int i = 0; i < totalViajes; i++) {
+                    String patente = tblRendimiento.getValueAt(i, 0).toString();
+                    String gasStr = tblRendimiento.getValueAt(i, 3).toString().replace("%", "").replace(",", ".");
+                    double gas = Double.parseDouble(gasStr);
+                    int alertas = Integer.parseInt(tblRendimiento.getValueAt(i, 4).toString());
+                    
+                    combustibleGlobal += gas;
+                    alertasGlobales += alertas;
+                    
+                    if (!statsVehiculos.containsKey(patente)) {
+                        statsVehiculos.put(patente, new double[]{0, 0, 0});
+                    }
+                    double[] stats = statsVehiculos.get(patente);
+                    stats[0]++;        // +1 Viaje
+                    stats[1] += gas;   // Suma Combustible
+                    stats[2] += alertas; // Suma Alertas
+                }
+                
+                double promedioGasGlobal = (totalViajes > 0) ? (combustibleGlobal / totalViajes) : 0.0;
+                
+                // ==========================================================
+                // TARJETAS SUPERIORES (KPIs GLOBALES)
+                // ==========================================================
+                com.itextpdf.text.pdf.PdfPTable tablaKpis = new com.itextpdf.text.pdf.PdfPTable(4);
+                tablaKpis.setWidthPercentage(100);
+                
+                String[] titulosKpi = {"VIAJES TOTALES", "CONSUMO PROM.", "ALERTAS TOTALES", "ÍNDICE DE RIESGO"};
+                String[] valoresKpi = {
+                    String.valueOf(totalViajes), 
+                    String.format("%.1f%%", promedioGasGlobal), 
+                    String.valueOf(alertasGlobales),
+                    (alertasGlobales > 0) ? "MODERADO" : "ÓPTIMO"
+                };
+                
+                for (int i = 0; i < 4; i++) {
+                    com.itextpdf.text.pdf.PdfPCell celdaTit = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(titulosKpi[i], fKpiTit));
+                    celdaTit.setBorder(com.itextpdf.text.Rectangle.NO_BORDER);
+                    celdaTit.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                    tablaKpis.addCell(celdaTit);
+                }
+                for (int i = 0; i < 4; i++) {
+                    com.itextpdf.text.pdf.PdfPCell celdaVal = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(valoresKpi[i], fKpiVal));
+                    celdaVal.setBorder(com.itextpdf.text.Rectangle.BOTTOM);
+                    celdaVal.setBorderColorBottom(new com.itextpdf.text.BaseColor(200, 200, 200));
+                    celdaVal.setPaddingBottom(10f);
+                    celdaVal.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                    
+                    // Colorear rojo si el índice de riesgo es moderado/alto
+                    if (i == 3 && alertasGlobales > 0) celdaVal.setPhrase(new com.itextpdf.text.Phrase(valoresKpi[i], new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 16, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.RED)));
+                    
+                    tablaKpis.addCell(celdaVal);
+                }
+                documento.add(tablaKpis);
+                documento.add(new com.itextpdf.text.Paragraph("\n\n"));
+                
+                // ==========================================================
+                // SECCIÓN 1: PREDICCIÓN DE MANTENIMIENTO E ÍNDICE DE RIESGO
+                // ==========================================================
+                documento.add(new com.itextpdf.text.Paragraph("1. Eficiencia y Diagnóstico Predictivo por Vehículo", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Evaluación cruzada de rendimiento de motor y estabilidad de refrigeración térmica.\n\n", fTablaDato));
+                
+                com.itextpdf.text.pdf.PdfPTable tablaPredictiva = new com.itextpdf.text.pdf.PdfPTable(5);
+                tablaPredictiva.setWidthPercentage(100);
+                tablaPredictiva.setWidths(new float[]{1.5f, 1.5f, 1.5f, 1.5f, 2f});
+                
+                String[] cabecerasDiag = {"Patente", "Consumo Prom.", "Total Alertas", "Índice Riesgo", "Diagnóstico del Sistema"};
+                for (String c : cabecerasDiag) {
+                    com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(c, fTablaCabecera));
+                    celda.setBackgroundColor(new com.itextpdf.text.BaseColor(0, 102, 204));
+                    celda.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                    celda.setPadding(6);
+                    tablaPredictiva.addCell(celda);
+                }
+                
+                for (java.util.Map.Entry<String, double[]> entry : statsVehiculos.entrySet()) {
+                    String patente = entry.getKey();
+                    double[] stats = entry.getValue(); // [0]Viajes, [1]Gas, [2]Alertas
+                    
+                    double promGas = stats[1] / stats[0];
+                    double indiceRiesgo = stats[2] / stats[0]; // Alertas por viaje
+                    
+                    String textoRiesgo = (indiceRiesgo > 0.5) ? "ALTO" : (indiceRiesgo > 0 ? "MEDIO" : "BAJO");
+                    String diagnostico = "Operativo";
+                    
+                    if (stats[2] > 0 || promGas > (promedioGasGlobal + 5.0)) {
+                        diagnostico = "Revisión Recomendada";
+                        vehiculosEnRiesgo++;
+                    }
+                    
+                    tablaPredictiva.addCell(new com.itextpdf.text.Phrase(patente, fTablaDato));
+                    tablaPredictiva.addCell(new com.itextpdf.text.Phrase(String.format("%.1f%%", promGas), fTablaDato));
+                    tablaPredictiva.addCell(new com.itextpdf.text.Phrase(String.valueOf((int)stats[2]), fTablaDato));
+                    
+                    // Colorear índice de riesgo
+                    com.itextpdf.text.Font fRiesgo = fTablaDato;
+                    if (textoRiesgo.equals("ALTO")) fRiesgo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.RED);
+                    tablaPredictiva.addCell(new com.itextpdf.text.Phrase(textoRiesgo, fRiesgo));
+                    
+                    // Colorear diagnóstico
+                    com.itextpdf.text.Font fDiag = fTablaDato;
+                    if (diagnostico.contains("Revisión")) fDiag = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(204, 102, 0));
+                    tablaPredictiva.addCell(new com.itextpdf.text.Phrase(diagnostico, fDiag));
+                }
+                documento.add(tablaPredictiva);
+                documento.add(new com.itextpdf.text.Paragraph("\n\n"));
+                
+                // ==========================================================
+                // SECCIÓN 2: DISTRIBUCIÓN DE RUTAS (PORCENTAJE DE USO)
+                // ==========================================================
+                documento.add(new com.itextpdf.text.Paragraph("2. Densidad Logística de Rutas", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Distribución porcentual de los corredores viales más utilizados.\n\n", fTablaDato));
+                
+                // Calcular total de frecuencias para sacar el porcentaje
+                int sumaFrecuencias = 0;
+                for (int i = 0; i < tblRutas.getRowCount(); i++) {
+                    sumaFrecuencias += Integer.parseInt(tblRutas.getValueAt(i, 2).toString().replace(" viajes", "").trim());
+                }
+                
+                com.itextpdf.text.pdf.PdfPTable tablaDistribucion = new com.itextpdf.text.pdf.PdfPTable(4);
+                tablaDistribucion.setWidthPercentage(90);
+                tablaDistribucion.setWidths(new float[]{2f, 2f, 1f, 1f});
+                
+                String[] cabecerasRutas = {"Origen", "Destino", "Viajes", "Porcentaje"};
+                for (String c : cabecerasRutas) {
+                    com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(c, fTablaCabecera));
+                    celda.setBackgroundColor(new com.itextpdf.text.BaseColor(0, 102, 204));
+                    celda.setPadding(6);
+                    tablaDistribucion.addCell(celda);
+                }
+                
+                for (int i = 0; i < tblRutas.getRowCount(); i++) {
+                    String origen = tblRutas.getValueAt(i, 0).toString();
+                    String destino = tblRutas.getValueAt(i, 1).toString();
+                    String frecuenciaStr = tblRutas.getValueAt(i, 2).toString().replace(" viajes", "").trim();
+                    int frec = Integer.parseInt(frecuenciaStr);
+                    double porcentaje = (sumaFrecuencias > 0) ? ((double)frec / sumaFrecuencias) * 100 : 0.0;
+                    
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(origen, fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(destino, fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(frecuenciaStr, fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(String.format("%.1f%%", porcentaje), new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD)));
+                }
+                documento.add(tablaDistribucion);
+                documento.add(new com.itextpdf.text.Paragraph("\n\n"));
+                
+                // ==========================================================
+                // SECCIÓN 3: BITÁCORA DETALLADA
+                // ==========================================================
+                documento.add(new com.itextpdf.text.Paragraph("3. Bitácora Cruda de Viajes Consolidada", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph(" ", fTablaDato));
+                
+                com.itextpdf.text.pdf.PdfPTable pdfTablaRendimiento = new com.itextpdf.text.pdf.PdfPTable(tblRendimiento.getColumnCount());
+                pdfTablaRendimiento.setWidthPercentage(100);
+                pdfTablaRendimiento.setWidths(new float[]{1.5f, 2f, 2f, 1.4f, 1.2f, 1.8f}); 
+                
+                for (int i = 0; i < tblRendimiento.getColumnCount(); i++) {
+                    com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(tblRendimiento.getColumnName(i), fTablaCabecera));
+                    celda.setBackgroundColor(new com.itextpdf.text.BaseColor(102, 102, 102)); 
+                    celda.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                    celda.setPadding(4);
+                    pdfTablaRendimiento.addCell(celda);
+                }
+                
+                for (int i = 0; i < tblRendimiento.getRowCount(); i++) {
+                    for (int j = 0; j < tblRendimiento.getColumnCount(); j++) {
+                        Object valor = tblRendimiento.getValueAt(i, j);
+                        com.itextpdf.text.pdf.PdfPCell c = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(valor != null ? valor.toString() : "", fTablaDato));
+                        c.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                        pdfTablaRendimiento.addCell(c);
+                    }
+                }
+                documento.add(pdfTablaRendimiento);
+                
+                // Pie de página
+                documento.add(new com.itextpdf.text.Paragraph("\n\n-- Fin del Documento --", fTablaDato));
+                documento.close();
+                
+                javax.swing.JOptionPane.showMessageDialog(this, 
+                        "El Dashboard Gerencial en formato A4 se exportó exitosamente.\n" + rutaFichero, 
+                        "Reporte Generado", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+                
+            } catch (Exception e) {
+                javax.swing.JOptionPane.showMessageDialog(this, 
+                        "Error al compilar la estructura del PDF: " + e.getMessage(), 
+                        "Fallo de Escritura", javax.swing.JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
     /**
      * @param args the command line arguments
      */
@@ -894,6 +1104,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JPanel PanelInformes;
     private javax.swing.JButton btnActualizar;
+    private javax.swing.JButton btnExportarPDF;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
