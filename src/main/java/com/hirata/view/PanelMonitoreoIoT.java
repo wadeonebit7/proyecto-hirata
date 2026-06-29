@@ -75,6 +75,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         configurarTemporizadorLectura();
         
         // RENDERIZADOR PERSONALIZADO PARA MARCAR ALERTAS TÉRMICAS EN LA TABLA
+        // RENDERIZADOR PERSONALIZADO PARA MARCAR ALERTAS TÉRMICAS EN LA TABLA
         tblFlota.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
@@ -82,22 +83,19 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 
                 java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 
-                // =====================================================================
-                // SOLUCIÓN AL ERROR: Validación de seguridad contra nulos (Null Check)
-                // =====================================================================
-                Object valorCelda = table.getValueAt(row, 0);
-                if (valorCelda == null) {
-                    return c; // Si la fila está vacía o cargando, retorna el color por defecto sin hacer nada
+                // 1. Escudo contra celdas vacías (Evita el NullPointerException inicial de NetBeans)
+                Object valorPatente = table.getValueAt(row, 0);
+                if (valorPatente == null) {
+                    return c; 
                 }
                 
-                String patenteFila = valorCelda.toString();
+                String patenteFila = valorPatente.toString();
                 boolean excedeTemperatura = false;
                 
                 if (listaWaypoints != null) {
                     for (org.jxmapviewer.viewer.Waypoint wp : listaWaypoints) {
                         if (wp instanceof CamionWaypoint) {
                             CamionWaypoint camion = (CamionWaypoint) wp;
-                            // Comparamos el límite de 5.0°C
                             if (camion.getPatente().equalsIgnoreCase(patenteFila) && camion.getTemperatura() > 5.0) {
                                 excedeTemperatura = true;
                                 break;
@@ -106,7 +104,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     }
                 }
                 
-                // Aplicar colores dinámicos
+                // 2. Aplicar colores dinámicos
                 if (excedeTemperatura) {
                     c.setBackground(new Color(255, 204, 204)); // Fondo Rojo de Alerta
                     c.setForeground(Color.RED);               // Texto Rojo
@@ -117,8 +115,25 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                         c.setForeground(table.getSelectionForeground());
                     } else {
                         c.setBackground(Color.WHITE); // Fondo Normal
-                        c.setForeground(Color.BLACK);
-                        setFont(getFont().deriveFont(java.awt.Font.PLAIN));
+                        Object valorEstado = table.getValueAt(row, 2);
+                        String estadoVehiculo = (valorEstado != null) ? valorEstado.toString() : "";
+                        
+                        if (column == 2) { // Si está pintando la columna de "Estado"
+                            if (estadoVehiculo.equals("Online")) {
+                                c.setForeground(new Color(0, 153, 51)); // Verde
+                                setFont(getFont().deriveFont(java.awt.Font.BOLD));
+                            } else if (estadoVehiculo.equals("Offline")) {
+                                c.setForeground(Color.GRAY); // Gris
+                                setFont(getFont().deriveFont(java.awt.Font.ITALIC));
+                            } else {
+                                c.setForeground(Color.BLACK); // Por seguridad
+                                setFont(getFont().deriveFont(java.awt.Font.PLAIN));
+                            }
+                        } else {
+                            // Columnas normales (Patente y N° Serie)
+                            c.setForeground(Color.BLACK);
+                            setFont(getFont().deriveFont(java.awt.Font.PLAIN));
+                        }
                     }
                 }
                 return c;
@@ -276,14 +291,22 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             // 1. Limpiar y rellenar los marcadores de la flota activa en el mapa
             listaWaypoints.clear();
             for (TelemetriaRuta t : flotaActiva) {
-                listaWaypoints.add(new CamionWaypoint(
-                        t.getIdGpsFk(), 
-                        t.getPatente(), 
-                        t.getLatitud(), 
-                        t.getLongitud(), 
-                        t.getConsumoCombustible(), 
-                        t.getTemperaturaMotor() // Mapeado como temperatura de carga
-                ));
+                
+                // 1. Determinar el estado lógico en tiempo real (margen de 15 segundos)
+                boolean estaActivoAhora = (t.getSegundosAtras() >= 0 && t.getSegundosAtras() <= 15);
+                String estadoTexto = estaActivoAhora ? "Online" : "Offline";
+                
+                // 2. Llenar las 3 columnas exactas de tu JTable
+                modeloTabla.addRow(new Object[]{
+                    t.getPatente(),
+                    t.getNumeroSerieGps(), 
+                    estadoTexto // <-- NUEVO: Agregamos el estado a la tercera columna
+                });
+                
+                // EVALUACIÓN EN TIEMPO REAL: Si el camión actual excede los 5.0°C, sumamos una incidencia
+                if (t.getTemperaturaMotor() > 5.0) {
+                    contadorAlertasTermicas++;
+                }
             }
 
             // 2. Pintor de los iconos de los camiones y panel flotante de datos expandido
@@ -537,6 +560,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         jLabel5 = new javax.swing.JLabel();
         lblTotalAlertas = new javax.swing.JLabel();
         btnActualizar = new javax.swing.JButton();
+        jPanel2 = new javax.swing.JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -552,13 +576,13 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
         tblFlota.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null},
-                {null, null},
-                {null, null},
-                {null, null}
+                {null, null, null},
+                {null, null, null},
+                {null, null, null},
+                {null, null, null}
             },
             new String [] {
-                "Patente", "N° Serie GPS"
+                "Patente", "N° Serie GPS", "Estado"
             }
         ));
         tblFlota.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -765,6 +789,19 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("Registros", PanelInformes);
 
+        javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
+        jPanel2.setLayout(jPanel2Layout);
+        jPanel2Layout.setHorizontalGroup(
+            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGap(0, 971, Short.MAX_VALUE)
+        );
+        jPanel2Layout.setVerticalGroup(
+            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGap(0, 609, Short.MAX_VALUE)
+        );
+
+        jTabbedPane1.addTab("tab3", jPanel2);
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -863,6 +900,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JPanel jPanel1;
+    private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JScrollPane jScrollPane3;

@@ -116,18 +116,17 @@ public class ControladorTelemetria implements Runnable {
                 // Si la temperatura supera los 5.0°C, se crea un registro de incidente en la tabla de control
                 if (this.temperaturaCarga > 5.0) {
                     if (!alertaActiva) {
-                        // CASO A: Cruza el límite por primera vez. Se gatilla el registro en MySQL.
                         dao.insertarAlertaTemperatura(idGps, this.temperaturaCarga);
-                        System.out.println("🚨 [ALERTA IOT] ¡Cadena de frío rota! Registro único insertado en control_temperatura_carga: " + String.format("%.1f", this.temperaturaCarga) + "°C.");
+                        this.contadorAlertasViaje++;
                         
+                        System.out.println("🚨 [ALERTA IOT] ¡Cadena de frío rota! Registro único insertado en control_temperatura_carga: " + String.format("%.1f", this.temperaturaCarga) + "°C.");
                         alertaActiva = true; // Se enciende el candado para bloquear las ráfagas siguientes
                     }
                     // Si 'alertaActiva' ya es true, entra aquí pero no hace nada, ignorando los duplicados
                 } else {
                     if (alertaActiva) {
-                        // CASO B: La temperatura regresó a niveles seguros. Se libera el candado.
+                        // La temperatura regresa a niveles seguros. Se libera el candado.
                         System.out.println("✅ [IoT-Restablecido] Temperatura normalizada. Sensor rearmado para futuras alertas.");
-                        
                         alertaActiva = false; // Permite que un próximo exceso vuelva a generar una inserción
                     }
                 }
@@ -156,7 +155,7 @@ public class ControladorTelemetria implements Runnable {
     public double getCombustibleActual() { return this.combustibleActual; }
     public double getTemperaturaCarga() { return this.temperaturaCarga; }
     
-    public double getCombustibleGastado() { return this.combustibleInicialViaje - this.combustibleActual; }
+    public double getCombustibleGastado() { return Math.abs(this.combustibleInicialViaje - this.combustibleActual); }
     public int getContadorAlertasViaje() { return this.contadorAlertasViaje; }
     
     // Los Setters ahora solo inyectan el dato y NO congelan la simulación
@@ -167,6 +166,7 @@ public class ControladorTelemetria implements Runnable {
     public void iniciarCombustibleSimulacion(double combustible) {
         this.combustibleActual = combustible;
         this.combustibleInicialViaje = combustible; // Guardamos el punto de partida
+        this.contadorAlertasViaje = 0;
     }
 
     public void iniciarTemperaturaSimulacion(double temperatura) {

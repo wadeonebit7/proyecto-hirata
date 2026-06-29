@@ -58,6 +58,11 @@ public class PanelConductor extends javax.swing.JFrame {
     private java.awt.Image imgCamionAzul = null;
     private java.awt.Image imgCamionRojo = null;
     
+    private String nombreOrigenActual = "Base Hirata (Iquique)"; // De dónde parte inicialmente
+    private String nombreDestinoActual = "Sin Destino";          // A dónde se dirige
+    
+    private boolean bloqueoEventosCombo = false; // Evita que el mapa y el ComboBox choquen entre sí
+    
     /**
      * Creates new form PanelConductor
      */
@@ -106,7 +111,7 @@ public class PanelConductor extends javax.swing.JFrame {
             }
         });
         
-        // EVENTO CLIC EN EL MAPA REESTRUCTURADO CON VALIDACIONES
+        // EVENTO CLIC EN EL MAPA
         mapaConductor.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -125,6 +130,14 @@ public class PanelConductor extends javax.swing.JFrame {
 
                     java.awt.Point clickPoint = e.getPoint();
                     destinoSeleccionado = mapaConductor.convertPointToGeoPosition(clickPoint);
+                    
+                    nombreDestinoActual = traducirCoordenadaAZona(destinoSeleccionado);
+                    lblEstadoConductor.setText("Calculando ruta hacia: " + nombreDestinoActual);
+                    
+                    bloqueoEventosCombo = true;  // 1. Cerramos candado
+                    cmbDestinosPredeterminados.setSelectedIndex(0); // 2. Cambiamos UI (Swing intenta disparar el evento pero choca con el candado)
+                    bloqueoEventosCombo = false; // 3. Abrimos candado inmediatamente
+                    
                     actualizarDestinoEnRuta();
                 }
             }
@@ -139,6 +152,7 @@ public class PanelConductor extends javax.swing.JFrame {
         cmbDestinosPredeterminados.removeAllItems();
         cmbDestinosPredeterminados.addItem("Seleccione Destino");
         cmbDestinosPredeterminados.addItem("ZOFRI Recinto Central");
+        cmbDestinosPredeterminados.addItem("BAGNER Soluciones Integrales");
         cmbDestinosPredeterminados.addItem("Puerto de Iquique Terminal");
         cmbDestinosPredeterminados.addItem("Rotonda El Pampino (Acceso Ruta A-16)");
         cmbDestinosPredeterminados.addItem("Hospital Regional de Iquique");
@@ -389,7 +403,7 @@ public class PanelConductor extends javax.swing.JFrame {
         jfxContainerConductor.setLayout(jfxContainerConductorLayout);
         jfxContainerConductorLayout.setHorizontalGroup(
             jfxContainerConductorLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 796, Short.MAX_VALUE)
+            .addGap(0, 0, Short.MAX_VALUE)
         );
         jfxContainerConductorLayout.setVerticalGroup(
             jfxContainerConductorLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -627,14 +641,16 @@ public class PanelConductor extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel1, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(18, 18, 18)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(lblEstadoConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(jfxContainerConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                .addContainerGap())
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                            .addComponent(jfxContainerConductor, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(lblEstadoConductor, javax.swing.GroupLayout.DEFAULT_SIZE, 800, Short.MAX_VALUE))
+                        .addContainerGap())
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addComponent(jLabel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addContainerGap())))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -656,17 +672,40 @@ public class PanelConductor extends javax.swing.JFrame {
 
     private void btnCancelarViajeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCancelarViajeActionPerformed
         // TODO add your handling code here:
+        // 1. Detener el reloj visual del mapa inmediatamente
+        if (timerAnimacionConductor != null) {
+            timerAnimacionConductor.stop();
+        }
+        
         // 1. Detener procesos en segundo plano
         if (emulador != null) {
             emulador.detenerSimulacion();
-        }
-        if (timerAnimacionConductor != null) {
-            timerAnimacionConductor.stop(); // Apagar animación visual
-        }
+        
+            double gasGastado = emulador.getCombustibleGastado();
+            
+            // Solo guardamos si realmente se movió (evita registrar viajes fantasma de 0%)
+            if (gasGastado > 0.1) { 
+                String patenteSeleccionada = cmbCamionesAsignados.getSelectedItem().toString();
+                Camion camionActual = ctrl.obtenerDatosCamionAdmin(patenteSeleccionada);
+                
+                if (camionActual != null) {
+                    int idCamionReal = camionActual.getId();
+                    int totalAlertas = emulador.getContadorAlertasViaje();
+                    String origen = this.nombreOrigenActual;
+                    String destino = this.nombreDestinoActual;
 
-        // =========================================================================
-        // SOLUCIÓN AL "TELETRANSPORTE": Limpiar el estado de la ruta anterior
-        // =========================================================================
+                    // Insertar en la Base de Datos UNA SOLA VEZ
+                    ctrl.guardarResumenViaje(idCamionReal, patenteSeleccionada, origen, destino, gasGastado, totalAlertas);
+                    System.out.println("✅ Viaje consolidado y guardado correctamente en MySQL.");
+
+                    // Preparamos el origen para el próximo viaje encadenado
+                    this.nombreOrigenActual = this.nombreDestinoActual;
+                }
+            }
+            
+            // DESTRUIR EL EMULADOR: Esto garantiza que no se dupliquen registros en la BD
+            emulador = null;
+        }
         
         // 2. Establecer el NUEVO punto de partida exactamente donde quedó estacionado el camión (Punto B)
         if (waypointCamionLocal != null) {
@@ -677,11 +716,9 @@ public class PanelConductor extends javax.swing.JFrame {
         rutaCalculada = null;
         destinoSeleccionado = null;
         
-        // 4. Regresar el ComboBox a "Seleccione Destino" 
-        // (Esto dispara tu bloque switch internamente, lo que ayuda a limpiar la línea azul)
+        bloqueoEventosCombo = true;
         cmbDestinosPredeterminados.setSelectedIndex(0);
-
-        // =========================================================================
+        bloqueoEventosCombo = false;
 
         // 5. Habilitar controles nuevamente
         btnIniciarViaje.setEnabled(true);
@@ -807,20 +844,6 @@ public class PanelConductor extends javax.swing.JFrame {
                 actualizarCapasMapaConductor();
                 
             } else {
-                if (emulador != null) {
-                    this.origenCalculoRuta = new GeoPosition(emulador.getLatActual(), emulador.getLonActual());
-
-                    // GUARDAR RESUMEN DEL VIAJE PARA EL INFORME (RF-12)
-                    double gasGastado = emulador.getCombustibleGastado();
-                    int totalAlertas = emulador.getContadorAlertasViaje();
-                    String origen = cmbDestinosPredeterminados.getSelectedItem().toString(); // O de donde haya partido
-                    String destino = "Destino Seleccionado"; // Aquí pasas el texto de tu ruta
-
-                    // Llamas a un nuevo método de tu controlador/DAO para insertar
-                    ctrl.guardarResumenViaje(idCamionReal, patenteSeleccionada, origen, destino, gasGastado, totalAlertas);
-
-                    System.out.println("Viaje consolidado guardado. Gastó: " + gasGastado + "% | Alertas: " + totalAlertas);
-                }
                 btnCancelarViajeActionPerformed(null);
             }
         });
@@ -835,6 +858,9 @@ public class PanelConductor extends javax.swing.JFrame {
     }//GEN-LAST:event_btnIniciarViajeActionPerformed
 
     private void cmbDestinosPredeterminadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbDestinosPredeterminadosActionPerformed
+        
+        if (bloqueoEventosCombo) return;
+        
         // Evitar que se dispare por error cuando el combo se está limpiando/inicializando
         if (cmbDestinosPredeterminados.getSelectedIndex() == -1) return;
 
@@ -843,7 +869,10 @@ public class PanelConductor extends javax.swing.JFrame {
             // Solo mostrar alerta si el usuario intentó elegir un destino válido (índice > 0)
             if (cmbDestinosPredeterminados.getSelectedIndex() > 0) {
                 javax.swing.JOptionPane.showMessageDialog(this, "Debe seleccionar un vehículo primero antes de marcar un destino.", "Validación", javax.swing.JOptionPane.WARNING_MESSAGE);
+                
+                bloqueoEventosCombo = true;
                 cmbDestinosPredeterminados.setSelectedIndex(0); // Lo regresamos a "Seleccione Destino"
+                bloqueoEventosCombo = false;
             }
             return;
         }
@@ -854,11 +883,17 @@ public class PanelConductor extends javax.swing.JFrame {
         }
 
         String seleccion = cmbDestinosPredeterminados.getSelectedItem().toString();
+        
+        // Guardar el nombre oficial del destino
+        nombreDestinoActual = seleccion;
 
         // Asignar las coordenadas GPS reales según la opción seleccionada
         switch (seleccion) {
             case "ZOFRI Recinto Central":
                 destinoSeleccionado = new GeoPosition(-20.211565, -70.134546);
+                break;
+            case "BAGNER Soluciones Integrales":
+                destinoSeleccionado = new GeoPosition(-20.2430691, -70.1268616);
                 break;
             case "Puerto de Iquique Terminal":
                 destinoSeleccionado = new GeoPosition(-20.205260, -70.156540);
@@ -976,6 +1011,40 @@ public class PanelConductor extends javax.swing.JFrame {
         for (String patente : ctrl.obtenerCamionesAsignados(Sesion.idPersonal)) {
             cmbCamionesAsignados.addItem(patente);
         }
+    }
+    
+    private String traducirCoordenadaAZona(GeoPosition puntoClic) {
+        // 1. Definir nuestras zonas logísticas conocidas
+        java.util.Map<String, GeoPosition> zonasConocidas = new java.util.HashMap<>();
+        zonasConocidas.put("ZOFRI Recinto Central", new GeoPosition(-20.211565, -70.134546));
+        zonasConocidas.put("Puerto de Iquique Terminal", new GeoPosition(-20.205260, -70.156540));
+        zonasConocidas.put("Rotonda El Pampino", new GeoPosition(-20.229410, -70.130630));
+        zonasConocidas.put("Terminal Agropecuario", new GeoPosition(-20.245030, -70.125740));
+        zonasConocidas.put("Alto Hospicio (Centro)", new GeoPosition(-20.273610, -70.106520));
+        zonasConocidas.put("Base Hirata (Cavancha)", origenBase);
+
+        String zonaMasCercana = "Despacho Externo (Ruta No Habitual)";
+        double distanciaMinima = 1.5; // Umbral de 1.5 kilómetros (Si hace clic más lejos de esto, es despacho externo)
+
+        // 2. Calcular proximidad (Fórmula aproximada de distancia para áreas locales)
+        for (java.util.Map.Entry<String, GeoPosition> zona : zonasConocidas.entrySet()) {
+            GeoPosition pConocido = zona.getValue();
+            
+            // Distancia euclidiana rápida ajustada a grados GPS
+            double diffLat = (puntoClic.getLatitude() - pConocido.getLatitude()) * 111.0; // 1 grado lat = ~111km
+            double diffLon = (puntoClic.getLongitude() - pConocido.getLongitude()) * 105.0; // 1 grado lon en Iquique = ~105km
+            
+            // Teorema de Pitágoras para distancia en KM
+            double distanciaKm = Math.sqrt((diffLat * diffLat) + (diffLon * diffLon));
+
+            // Si está muy cerca de este punto (dentro de nuestro radio de 1.5km), asume que va para allá
+            if (distanciaKm < distanciaMinima) {
+                distanciaMinima = distanciaKm;
+                zonaMasCercana = "Sector: " + zona.getKey();
+            }
+        }
+        
+        return zonaMasCercana;
     }
     
     /**

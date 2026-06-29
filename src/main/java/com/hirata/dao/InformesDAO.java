@@ -79,7 +79,8 @@ public class InformesDAO {
      */
     public int obtenerTotalAlertasTermicas() {
         int total = 0;
-        String sql = "SELECT SUM(alertas_termicas) AS total_alertas FROM registro_viajes";
+        // Cambiamos el SUM de viajes por un COUNT exacto de la tabla de sensores
+        String sql = "SELECT COUNT(*) AS total_alertas FROM control_temperatura_carga";
         
         try (Connection con = MySQLConexion.getConexion();
              PreparedStatement ps = con.prepareStatement(sql);
