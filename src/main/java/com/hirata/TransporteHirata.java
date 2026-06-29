@@ -18,8 +18,8 @@ import java.util.List;
 public class TransporteHirata {
 
     public static void main(String[] args) {
-        String user = "apalma";
-        String pass = "12345";
+        String user = "acortes";
+        String pass = "456";
 
         ControladorLogin cl = new ControladorLogin();
         String respuesta = cl.acceder(user, pass);

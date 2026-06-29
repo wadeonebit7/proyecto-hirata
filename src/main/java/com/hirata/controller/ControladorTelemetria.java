@@ -34,6 +34,11 @@ public class ControladorTelemetria implements Runnable {
     private double lonActual = -70.15053000;
     private double latDestino = -20.20521000;
     private double lonDestino = -70.13425000;
+    
+    private double combustibleInicialViaje;
+    private int contadorAlertasViaje = 0;
+    
+    
 
     public ControladorTelemetria(int idCamion, List<GeoPosition> rutaCalculada) {
         this.idCamion = idCamion;
@@ -151,6 +156,9 @@ public class ControladorTelemetria implements Runnable {
     public double getCombustibleActual() { return this.combustibleActual; }
     public double getTemperaturaCarga() { return this.temperaturaCarga; }
     
+    public double getCombustibleGastado() { return this.combustibleInicialViaje - this.combustibleActual; }
+    public int getContadorAlertasViaje() { return this.contadorAlertasViaje; }
+    
     // Los Setters ahora solo inyectan el dato y NO congelan la simulación
     public void setCombustibleActual(double combustibleActual) { this.combustibleActual = combustibleActual; }
     public void setTemperaturaCarga(double temperaturaCarga) { this.temperaturaCarga = temperaturaCarga; }
@@ -158,6 +166,7 @@ public class ControladorTelemetria implements Runnable {
     
     public void iniciarCombustibleSimulacion(double combustible) {
         this.combustibleActual = combustible;
+        this.combustibleInicialViaje = combustible; // Guardamos el punto de partida
     }
 
     public void iniciarTemperaturaSimulacion(double temperatura) {

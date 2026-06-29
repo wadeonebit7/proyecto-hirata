@@ -5,7 +5,9 @@
 package com.hirata.view;
 
 import com.hirata.controller.ControladorAdmin;
+import com.hirata.dao.InformesDAO;
 import com.hirata.dao.TelemetriaDAO;
+import com.hirata.model.ResumenViaje;
 import com.hirata.model.TelemetriaRuta;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -55,6 +57,8 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
      */
     public PanelMonitoreoIoT() {
         initComponents();
+        
+        cargarInformesGerenciales();
         
         // Cargar las imágenes PNG en memoria al iniciar la ventana
         try {
@@ -457,6 +461,49 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
             JOptionPane.showMessageDialog(null, "Abriendo bitácora de telemetría en tiempo real para el GPS ID: " + idGps);
         }
     }
+    
+    private void cargarInformesGerenciales() {
+        InformesDAO dao = new InformesDAO();
+        
+        // 1. CARGAR HISTORIAL DE RENDIMIENTO
+        List<ResumenViaje> historial = dao.obtenerHistorialRendimiento();
+        DefaultTableModel modeloRendimiento = (DefaultTableModel) tblRendimiento.getModel();
+        modeloRendimiento.setRowCount(0); // Limpiar tabla
+        
+        for (ResumenViaje v : historial) {
+            modeloRendimiento.addRow(new Object[]{
+                v.getPatente(),
+                v.getOrigen(),
+                v.getDestino(),
+                String.format("%.1f%%", v.getCombustibleGastado()),
+                v.getAlertasTermicas(),
+                v.getFechaViaje() != null ? new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(v.getFechaViaje()) : "N/A"
+            });
+        }
+        
+        // 2. CARGAR RUTAS MÁS FRECUENTES
+        List<ResumenViaje> rutasFrecuentes = dao.obtenerRutasMasFrecuentes();
+        DefaultTableModel modeloRutas = (DefaultTableModel) tblRutas.getModel();
+        modeloRutas.setRowCount(0); // Limpiar tabla
+        
+        for (ResumenViaje v : rutasFrecuentes) {
+            modeloRutas.addRow(new Object[]{
+                v.getOrigen(),
+                v.getDestino(),
+                v.getFrecuencia() + " viajes"
+            });
+        }
+        
+        // 3. CARGAR KPI DE ALERTAS
+        int totalAlertas = dao.obtenerTotalAlertasTermicas();
+        lblTotalAlertas.setText(String.valueOf(totalAlertas));
+        
+        if (totalAlertas > 0) {
+            lblTotalAlertas.setForeground(java.awt.Color.RED);
+        } else {
+            lblTotalAlertas.setForeground(new java.awt.Color(0, 153, 51)); // Verde
+        }
+    }
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -481,9 +528,15 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         lblTotalIncidencias = new javax.swing.JLabel();
         jfxContainer = new javax.swing.JPanel();
         jLabel3 = new javax.swing.JLabel();
-        jPanel2 = new javax.swing.JPanel();
+        PanelInformes = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
-        jTable1 = new javax.swing.JTable();
+        tblRendimiento = new javax.swing.JTable();
+        jLabel4 = new javax.swing.JLabel();
+        jScrollPane3 = new javax.swing.JScrollPane();
+        tblRutas = new javax.swing.JTable();
+        jLabel5 = new javax.swing.JLabel();
+        lblTotalAlertas = new javax.swing.JLabel();
+        btnActualizar = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -626,37 +679,91 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("Logística", jPanel1);
 
-        jTable1.setModel(new javax.swing.table.DefaultTableModel(
+        tblRendimiento.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null},
-                {null, null, null, null},
-                {null, null, null, null},
-                {null, null, null, null}
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null},
+                {null, null, null, null, null, null}
             },
             new String [] {
-                "Title 1", "Title 2", "Title 3", "Title 4"
+                "Patente", "Origen", "Destino", "Gasto Combustible (%)", "Alertas Térmicas", "Fecha"
             }
         ));
-        jScrollPane1.setViewportView(jTable1);
+        jScrollPane1.setViewportView(tblRendimiento);
 
-        javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
-        jPanel2.setLayout(jPanel2Layout);
-        jPanel2Layout.setHorizontalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel2Layout.createSequentialGroup()
-                .addGap(20, 20, 20)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 856, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(95, Short.MAX_VALUE))
-        );
-        jPanel2Layout.setVerticalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
-                .addContainerGap(176, Short.MAX_VALUE)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        jLabel4.setFont(new java.awt.Font("Segoe UI", 1, 18)); // NOI18N
+        jLabel4.setText("RENDIMIENTO DE FLOTA");
+
+        tblRutas.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+                {null, null, null},
+                {null, null, null},
+                {null, null, null},
+                {null, null, null}
+            },
+            new String [] {
+                "Origen", "Destino", "Frecuencia"
+            }
+        ));
+        jScrollPane3.setViewportView(tblRutas);
+
+        jLabel5.setText("Total Alertas Térmicas (Histórico):");
+
+        lblTotalAlertas.setText("0");
+
+        btnActualizar.setText("Actualizar Informes");
+        btnActualizar.addActionListener(this::btnActualizarActionPerformed);
+
+        javax.swing.GroupLayout PanelInformesLayout = new javax.swing.GroupLayout(PanelInformes);
+        PanelInformes.setLayout(PanelInformesLayout);
+        PanelInformesLayout.setHorizontalGroup(
+            PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(PanelInformesLayout.createSequentialGroup()
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addContainerGap(632, Short.MAX_VALUE)
+                        .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 333, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addGap(26, 26, 26)
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 574, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(0, 0, Short.MAX_VALUE)))
                 .addContainerGap())
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, PanelInformesLayout.createSequentialGroup()
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(jLabel5)
+                .addGap(35, 35, 35)
+                .addComponent(lblTotalAlertas, javax.swing.GroupLayout.PREFERRED_SIZE, 89, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(26, 26, 26))
+            .addGroup(PanelInformesLayout.createSequentialGroup()
+                .addGap(20, 20, 20)
+                .addComponent(jLabel4)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(btnActualizar, javax.swing.GroupLayout.PREFERRED_SIZE, 227, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(53, 53, 53))
+        );
+        PanelInformesLayout.setVerticalGroup(
+            PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(PanelInformesLayout.createSequentialGroup()
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addGap(15, 15, 15)
+                        .addComponent(jLabel4))
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addGap(37, 37, 37)
+                        .addComponent(btnActualizar)))
+                .addGap(87, 87, 87)
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel5)
+                    .addComponent(lblTotalAlertas))
+                .addGap(49, 49, 49)
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(jScrollPane3, javax.swing.GroupLayout.DEFAULT_SIZE, 261, Short.MAX_VALUE)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE))
+                .addContainerGap(136, Short.MAX_VALUE))
         );
 
-        jTabbedPane1.addTab("Registros", jPanel2);
+        jTabbedPane1.addTab("Registros", PanelInformes);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -716,6 +823,12 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_tblFlotaMouseClicked
 
+    private void btnActualizarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnActualizarActionPerformed
+        // TODO add your handling code here:
+        cargarInformesGerenciales();
+        javax.swing.JOptionPane.showMessageDialog(this, "Informes actualizados con éxito desde la base de datos.");
+    }//GEN-LAST:event_btnActualizarActionPerformed
+
     /**
      * @param args the command line arguments
      */
@@ -742,22 +855,28 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JPanel PanelInformes;
+    private javax.swing.JButton btnActualizar;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
     private javax.swing.JPanel jPanel1;
-    private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
+    private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JTabbedPane jTabbedPane1;
-    private javax.swing.JTable jTable1;
     private javax.swing.JPanel jfxContainer;
+    private javax.swing.JLabel lblTotalAlertas;
     private javax.swing.JLabel lblTotalFlota;
     private javax.swing.JLabel lblTotalFlota1;
     private javax.swing.JLabel lblTotalFlota2;
     private javax.swing.JLabel lblTotalIncidencias;
     private javax.swing.JPanel panelLateral;
     private javax.swing.JTable tblFlota;
+    private javax.swing.JTable tblRendimiento;
+    private javax.swing.JTable tblRutas;
     private javax.swing.JTextField txtDispositivoGps;
     // End of variables declaration//GEN-END:variables
     private final java.util.Set<org.jxmapviewer.viewer.Waypoint> listaWaypoints = new java.util.HashSet<>();

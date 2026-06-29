@@ -64,7 +64,7 @@ public class PanelConductor extends javax.swing.JFrame {
     public PanelConductor() {
         initComponents();
         
-        // Cargar las imágenes PNG en memoria usando ruta relativa
+        // Cargar las imágenes PNG
         try {
             imgCamionAzul = new javax.swing.ImageIcon(getClass().getResource("camion_azul.png")).getImage();
             imgCamionRojo = new javax.swing.ImageIcon(getClass().getResource("camion_rojo.png")).getImage();
@@ -140,7 +140,14 @@ public class PanelConductor extends javax.swing.JFrame {
         cmbDestinosPredeterminados.addItem("Seleccione Destino");
         cmbDestinosPredeterminados.addItem("ZOFRI Recinto Central");
         cmbDestinosPredeterminados.addItem("Puerto de Iquique Terminal");
+        cmbDestinosPredeterminados.addItem("Rotonda El Pampino (Acceso Ruta A-16)");
+        cmbDestinosPredeterminados.addItem("Hospital Regional de Iquique");
+        cmbDestinosPredeterminados.addItem("Mall Plaza Iquique");
+        cmbDestinosPredeterminados.addItem("Terminal Agropecuario (El Agro)");
         cmbDestinosPredeterminados.addItem("Playa Brava Sector Norte");
+        cmbDestinosPredeterminados.addItem("Universidad Arturo Prat (UNAP)");
+        cmbDestinosPredeterminados.addItem("Bajo Molle (Sector Industrial)");
+        cmbDestinosPredeterminados.addItem("Alto Hospicio (Centro Logístico)");
     }
 
     // Método que se activa cuando el chofer usa el click o el ComboBox
@@ -649,6 +656,7 @@ public class PanelConductor extends javax.swing.JFrame {
 
     private void btnCancelarViajeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCancelarViajeActionPerformed
         // TODO add your handling code here:
+        // 1. Detener procesos en segundo plano
         if (emulador != null) {
             emulador.detenerSimulacion();
         }
@@ -656,12 +664,36 @@ public class PanelConductor extends javax.swing.JFrame {
             timerAnimacionConductor.stop(); // Apagar animación visual
         }
 
-        // Habilitar controles nuevamente
+        // =========================================================================
+        // SOLUCIÓN AL "TELETRANSPORTE": Limpiar el estado de la ruta anterior
+        // =========================================================================
+        
+        // 2. Establecer el NUEVO punto de partida exactamente donde quedó estacionado el camión (Punto B)
+        if (waypointCamionLocal != null) {
+            this.origenCalculoRuta = waypointCamionLocal.getPosition();
+        }
+
+        // 3. Borrar la memoria de la ruta y el destino
+        rutaCalculada = null;
+        destinoSeleccionado = null;
+        
+        // 4. Regresar el ComboBox a "Seleccione Destino" 
+        // (Esto dispara tu bloque switch internamente, lo que ayuda a limpiar la línea azul)
+        cmbDestinosPredeterminados.setSelectedIndex(0);
+
+        // =========================================================================
+
+        // 5. Habilitar controles nuevamente
         btnIniciarViaje.setEnabled(true);
         btnCancelarViaje.setEnabled(false);
         cmbCamionesAsignados.setEnabled(true);
         cmbDestinosPredeterminados.setEnabled(true);
-        lblEstadoConductor.setText("Viaje Terminado/Cancelado. Controles desbloqueados.");
+        
+        lblEstadoConductor.setText("Viaje finalizado. Vehículo en posición esperando nueva ruta.");
+        lblEstadoConductor.setForeground(java.awt.Color.BLACK);
+        
+        // 6. Redibujar el mapa (El PNG del camión se queda en el Punto B, pero la ruta desaparece)
+        actualizarCapasMapaConductor();
     }//GEN-LAST:event_btnCancelarViajeActionPerformed
 
     private void cmbCamionesAsignadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbCamionesAsignadosActionPerformed
@@ -775,11 +807,21 @@ public class PanelConductor extends javax.swing.JFrame {
                 actualizarCapasMapaConductor();
                 
             } else {
-                // Si el emulador llegó a su destino, guarda la última coordenada conocida y apaga el viaje
                 if (emulador != null) {
                     this.origenCalculoRuta = new GeoPosition(emulador.getLatActual(), emulador.getLonActual());
+
+                    // GUARDAR RESUMEN DEL VIAJE PARA EL INFORME (RF-12)
+                    double gasGastado = emulador.getCombustibleGastado();
+                    int totalAlertas = emulador.getContadorAlertasViaje();
+                    String origen = cmbDestinosPredeterminados.getSelectedItem().toString(); // O de donde haya partido
+                    String destino = "Destino Seleccionado"; // Aquí pasas el texto de tu ruta
+
+                    // Llamas a un nuevo método de tu controlador/DAO para insertar
+                    ctrl.guardarResumenViaje(idCamionReal, patenteSeleccionada, origen, destino, gasGastado, totalAlertas);
+
+                    System.out.println("Viaje consolidado guardado. Gastó: " + gasGastado + "% | Alertas: " + totalAlertas);
                 }
-                btnCancelarViajeActionPerformed(null); // Desbloquea controles de interfaz
+                btnCancelarViajeActionPerformed(null);
             }
         });
         timerAnimacionConductor.start();
@@ -793,7 +835,72 @@ public class PanelConductor extends javax.swing.JFrame {
     }//GEN-LAST:event_btnIniciarViajeActionPerformed
 
     private void cmbDestinosPredeterminadosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cmbDestinosPredeterminadosActionPerformed
+        // Evitar que se dispare por error cuando el combo se está limpiando/inicializando
+        if (cmbDestinosPredeterminados.getSelectedIndex() == -1) return;
 
+        // VALIDACIÓN 1: Verificar si hay un vehículo seleccionado
+        if (cmbCamionesAsignados.getSelectedIndex() <= 0) {
+            // Solo mostrar alerta si el usuario intentó elegir un destino válido (índice > 0)
+            if (cmbDestinosPredeterminados.getSelectedIndex() > 0) {
+                javax.swing.JOptionPane.showMessageDialog(this, "Debe seleccionar un vehículo primero antes de marcar un destino.", "Validación", javax.swing.JOptionPane.WARNING_MESSAGE);
+                cmbDestinosPredeterminados.setSelectedIndex(0); // Lo regresamos a "Seleccione Destino"
+            }
+            return;
+        }
+
+        // VALIDACIÓN 2: Si el viaje ya inició y el camión está en movimiento, bloquear el cambio de ruta
+        if (emulador != null && !btnIniciarViaje.isEnabled()) {
+            return;
+        }
+
+        String seleccion = cmbDestinosPredeterminados.getSelectedItem().toString();
+
+        // Asignar las coordenadas GPS reales según la opción seleccionada
+        switch (seleccion) {
+            case "ZOFRI Recinto Central":
+                destinoSeleccionado = new GeoPosition(-20.211565, -70.134546);
+                break;
+            case "Puerto de Iquique Terminal":
+                destinoSeleccionado = new GeoPosition(-20.205260, -70.156540);
+                break;
+            case "Rotonda El Pampino (Acceso Ruta A-16)":
+                destinoSeleccionado = new GeoPosition(-20.229410, -70.130630);
+                break;
+            case "Hospital Regional de Iquique":
+                destinoSeleccionado = new GeoPosition(-20.228420, -70.137810);
+                break;
+            case "Mall Plaza Iquique":
+                destinoSeleccionado = new GeoPosition(-20.242950, -70.142060);
+                break;
+            case "Terminal Agropecuario (El Agro)":
+                destinoSeleccionado = new GeoPosition(-20.245030, -70.125740);
+                break;
+            case "Playa Brava Sector Norte":
+                destinoSeleccionado = new GeoPosition(-20.252030, -70.139610);
+                break;
+            case "Universidad Arturo Prat (UNAP)":
+                destinoSeleccionado = new GeoPosition(-20.264220, -70.133280);
+                break;
+            case "Bajo Molle (Sector Industrial)":
+                destinoSeleccionado = new GeoPosition(-20.276480, -70.130250);
+                break;
+            case "Alto Hospicio (Centro Logístico)":
+                destinoSeleccionado = new GeoPosition(-20.273610, -70.106520);
+                break;
+            default: 
+                // Caso "Seleccione Destino": Se limpia la ruta del mapa
+                destinoSeleccionado = null;
+                rutaCalculada = null; 
+                actualizarCapasMapaConductor(); // Redibujar el mapa sin la línea azul
+                lblEstadoConductor.setText("Destino cancelado. Esperando instrucciones.");
+                lblEstadoConductor.setForeground(Color.BLACK);
+                return;
+        }
+
+        // Si el switch asignó un destino válido, mandamos a calcular la ruta y dibujar la línea
+        if (destinoSeleccionado != null) {
+            actualizarDestinoEnRuta();
+        }
     }//GEN-LAST:event_cmbDestinosPredeterminadosActionPerformed
 
     private void btnAplicarSensoresActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAplicarSensoresActionPerformed

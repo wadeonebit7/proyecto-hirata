@@ -94,6 +94,30 @@ public class ControladorConductor extends ControladorBase {
         }
         return 100.0; // Si el camión es nuevo y no tiene registros, inicializa con estanque lleno (100%)
     }
+    
+    // =========================================================================
+    // RF-12: INSERCIÓN DEL RESUMEN GERENCIAL AL FINALIZAR EL VIAJE
+    // =========================================================================
+    public boolean guardarResumenViaje(int idCamion, String patente, String origen, String destino, double combustibleGastado, int alertasTermicas) {
+        String sql = "INSERT INTO registro_viajes (id_camion_fk, patente, origen, destino, combustible_gastado, alertas_termicas, fecha_viaje) VALUES (?, ?, ?, ?, ?, ?, NOW())";
+        
+        try (java.sql.Connection con = com.hirata.model.MySQLConexion.getConexion();
+             java.sql.PreparedStatement ps = con.prepareStatement(sql)) {
+            
+            ps.setInt(1, idCamion);
+            ps.setString(2, patente);
+            ps.setString(3, origen);
+            ps.setString(4, destino);
+            ps.setDouble(5, combustibleGastado);
+            ps.setInt(6, alertasTermicas); // Cantidad de veces que se rompió la cadena de frío
+            
+            return ps.executeUpdate() > 0;
+            
+        } catch (java.sql.SQLException e) {
+            System.err.println("Error en ControladorConductor -> guardarResumenViaje: " + e.getMessage());
+            return false;
+        }
+    }
 
     // ---------- CONTRATO DE HERENCIA OBLIGATORIO (ControladorBase) ----------
     @Override
