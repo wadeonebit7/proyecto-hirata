@@ -40,6 +40,7 @@ public class DashboardView extends javax.swing.JFrame {
         jMenu2 = new javax.swing.JMenu();
         jMenuItem1 = new javax.swing.JMenuItem();
         jMenuItem2 = new javax.swing.JMenuItem();
+        jMenuItem3 = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -67,13 +68,17 @@ public class DashboardView extends javax.swing.JFrame {
         jMenu2.setText("Acciones");
         jMenu2.addActionListener(this::jMenu2ActionPerformed);
 
-        jMenuItem1.setText("Crear Registro");
+        jMenuItem1.setText("Ingresar Nuevo Registro");
         jMenuItem1.addActionListener(this::jMenuItem1ActionPerformed);
         jMenu2.add(jMenuItem1);
 
         jMenuItem2.setText("Gestion y Historial");
         jMenuItem2.addActionListener(this::jMenuItem2ActionPerformed);
         jMenu2.add(jMenuItem2);
+
+        jMenuItem3.setText("Monitoreo de Vehiculos");
+        jMenuItem3.addActionListener(this::jMenuItem3ActionPerformed);
+        jMenu2.add(jMenuItem3);
 
         jMenuBar1.add(jMenu2);
 
@@ -93,7 +98,7 @@ public class DashboardView extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addGap(22, 22, 22)
                 .addComponent(lblBienvenida)
-                .addContainerGap(181, Short.MAX_VALUE))
+                .addContainerGap(182, Short.MAX_VALUE))
         );
 
         pack();
@@ -186,18 +191,35 @@ public class DashboardView extends javax.swing.JFrame {
             lblBienvenida.setText("BIENVENIDO ADMINISTRADOR: " + nombreUsuario);
 
             // Modifica los JMenuItems copiados del diseñador usando los nombres que ya existen
-            jMenuItem1.setText("Crear Registro");
             jMenuItem2.setText("Gestión y Historial");
-
+            jMenuItem3.setText("Monitoreo de Vehiculos");
+            
         } else if (com.hirata.model.Sesion.rol.equals("conductor")) {
             // Cambia el JLabel de bienvenida
             lblBienvenida.setText("BIENVENIDO CONDUCTOR: " + nombreUsuario);
 
             // Modifica los mismos JMenuItems para el Conductor
-            jMenuItem1.setText("Nuevo Registro");
             jMenuItem2.setText("Ver Historial");
+            jMenuItem3.setText("Simulacion Viaje");
         }
     }//GEN-LAST:event_formWindowOpened
+
+    private void jMenuItem3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem3ActionPerformed
+        // TODO add your handling code here:
+        if (com.hirata.model.Sesion.rol.equals("admin")) {
+            
+            java.awt.EventQueue.invokeLater(() -> {
+            new PanelMonitoreoIoT().setVisible(true);
+        });
+            
+        } else if (com.hirata.model.Sesion.rol.equals("conductor")) {
+            
+            java.awt.EventQueue.invokeLater(() -> {
+            new PanelConductor().setVisible(true);
+        });
+            
+        }
+    }//GEN-LAST:event_jMenuItem3ActionPerformed
 
     /**
      * @param args the command line arguments
@@ -231,6 +253,7 @@ public class DashboardView extends javax.swing.JFrame {
     private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JMenuItem jMenuItem1;
     private javax.swing.JMenuItem jMenuItem2;
+    private javax.swing.JMenuItem jMenuItem3;
     private javax.swing.JMenuItem jMenuItem5;
     private javax.swing.JLabel lblBienvenida;
     // End of variables declaration//GEN-END:variables

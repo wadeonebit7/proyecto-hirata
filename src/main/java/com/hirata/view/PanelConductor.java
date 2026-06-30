@@ -392,7 +392,7 @@ public class PanelConductor extends javax.swing.JFrame {
         txtCombustibleSim2 = new javax.swing.JLabel();
         txtTemperaturaSim4 = new javax.swing.JLabel();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
         jfxContainerConductor.setBorder(javax.swing.BorderFactory.createEtchedBorder());
         jfxContainerConductor.setMinimumSize(new java.awt.Dimension(600, 500));

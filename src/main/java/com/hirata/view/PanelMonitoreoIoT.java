@@ -530,6 +530,9 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         btnActualizar = new javax.swing.JButton();
         btnExportarPDF = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
+        jScrollPane4 = new javax.swing.JScrollPane();
+        jTable1 = new javax.swing.JTable();
+        jLabel6 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -589,7 +592,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 .addContainerGap()
                 .addGroup(panelLateralLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(panelLateralLayout.createSequentialGroup()
-                        .addGap(0, 15, Short.MAX_VALUE)
+                        .addGap(0, 30, Short.MAX_VALUE)
                         .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addGap(192, 192, 192))
                     .addComponent(lblTotalFlota1)
@@ -667,7 +670,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(jfxContainer, javax.swing.GroupLayout.DEFAULT_SIZE, 533, Short.MAX_VALUE)
                     .addComponent(panelLateral, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addGap(15, 15, 15))
+                .addGap(9, 9, 9))
         );
 
         jTabbedPane1.addTab("Logística", jPanel1);
@@ -703,12 +706,14 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
 
         jLabel5.setText("Total Alertas Térmicas (Histórico):");
 
+        lblTotalAlertas.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         lblTotalAlertas.setText("0");
+        lblTotalAlertas.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.RAISED));
 
         btnActualizar.setText("Actualizar Informes");
         btnActualizar.addActionListener(this::btnActualizarActionPerformed);
 
-        btnExportarPDF.setText("Exportar Reporte a PDF");
+        btnExportarPDF.setText("Exportar Reporte");
         btnExportarPDF.addActionListener(this::btnExportarPDFActionPerformed);
 
         javax.swing.GroupLayout PanelInformesLayout = new javax.swing.GroupLayout(PanelInformes);
@@ -716,29 +721,25 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         PanelInformesLayout.setHorizontalGroup(
             PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(PanelInformesLayout.createSequentialGroup()
+                .addGap(12, 12, 12)
                 .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(PanelInformesLayout.createSequentialGroup()
-                        .addContainerGap(632, Short.MAX_VALUE)
-                        .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 333, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(PanelInformesLayout.createSequentialGroup()
-                        .addGap(26, 26, 26)
                         .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 574, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(0, 0, Short.MAX_VALUE)))
-                .addContainerGap())
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, PanelInformesLayout.createSequentialGroup()
-                .addGap(0, 0, Short.MAX_VALUE)
-                .addComponent(jLabel5)
-                .addGap(35, 35, 35)
-                .addComponent(lblTotalAlertas, javax.swing.GroupLayout.PREFERRED_SIZE, 89, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(26, 26, 26))
-            .addGroup(PanelInformesLayout.createSequentialGroup()
-                .addGap(20, 20, 20)
-                .addComponent(jLabel4)
-                .addGap(51, 51, 51)
-                .addComponent(btnExportarPDF, javax.swing.GroupLayout.PREFERRED_SIZE, 203, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(btnActualizar, javax.swing.GroupLayout.PREFERRED_SIZE, 227, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(53, 53, 53))
+                        .addGap(18, 18, 18)
+                        .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 376, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap())
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel4)
+                            .addGroup(PanelInformesLayout.createSequentialGroup()
+                                .addComponent(jLabel5)
+                                .addGap(18, 18, 18)
+                                .addComponent(lblTotalAlertas, javax.swing.GroupLayout.PREFERRED_SIZE, 89, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(btnExportarPDF, javax.swing.GroupLayout.PREFERRED_SIZE, 227, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(btnActualizar, javax.swing.GroupLayout.PREFERRED_SIZE, 227, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(53, 53, 53))))
         );
         PanelInformesLayout.setVerticalGroup(
             PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -746,37 +747,70 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(PanelInformesLayout.createSequentialGroup()
                         .addGap(15, 15, 15)
-                        .addComponent(jLabel4))
+                        .addComponent(jLabel4)
+                        .addGap(20, 20, 20))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, PanelInformesLayout.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(btnActualizar)))
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(PanelInformesLayout.createSequentialGroup()
-                        .addGap(37, 37, 37)
+                        .addGap(15, 15, 15)
                         .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(btnActualizar)
-                            .addComponent(btnExportarPDF))))
-                .addGap(87, 87, 87)
-                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel5)
-                    .addComponent(lblTotalAlertas))
-                .addGap(49, 49, 49)
-                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(jScrollPane3, javax.swing.GroupLayout.DEFAULT_SIZE, 261, Short.MAX_VALUE)
-                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE))
-                .addContainerGap(136, Short.MAX_VALUE))
+                            .addComponent(jLabel5)
+                            .addComponent(lblTotalAlertas)))
+                    .addGroup(PanelInformesLayout.createSequentialGroup()
+                        .addGap(6, 6, 6)
+                        .addComponent(btnExportarPDF)))
+                .addGap(18, 18, 18)
+                .addGroup(PanelInformesLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 484, Short.MAX_VALUE)
+                    .addComponent(jScrollPane3))
+                .addContainerGap())
         );
 
         jTabbedPane1.addTab("Registros", PanelInformes);
+
+        jTable1.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+                {null, null, null, null},
+                {null, null, null, null},
+                {null, null, null, null},
+                {null, null, null, null}
+            },
+            new String [] {
+                "Title 1", "Title 2", "Title 3", "Title 4"
+            }
+        ));
+        jScrollPane4.setViewportView(jTable1);
+
+        jLabel6.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabel6.setText("INFORMACION DE GPS");
 
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 971, Short.MAX_VALUE)
+            .addGroup(jPanel2Layout.createSequentialGroup()
+                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addGap(26, 26, 26)
+                        .addComponent(jScrollPane4, javax.swing.GroupLayout.PREFERRED_SIZE, 908, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addGap(67, 67, 67)
+                        .addComponent(jLabel6, javax.swing.GroupLayout.PREFERRED_SIZE, 391, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addContainerGap(52, Short.MAX_VALUE))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 609, Short.MAX_VALUE)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                .addGap(35, 35, 35)
+                .addComponent(jLabel6)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 36, Short.MAX_VALUE)
+                .addComponent(jScrollPane4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(89, 89, 89))
         );
 
-        jTabbedPane1.addTab("tab3", jPanel2);
+        jTabbedPane1.addTab("GPS", jPanel2);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -850,7 +884,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     private void generarReportePDF() {
         javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
         fileChooser.setDialogTitle("Guardar Dashboard Gerencial PDF");
-        fileChooser.setSelectedFile(new java.io.File("Dashboard_Logistica_Hirata.pdf")); 
+        fileChooser.setSelectedFile(new java.io.File("logisticaHirata-log.pdf")); 
         
         if (fileChooser.showSaveDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
             String rutaFichero = fileChooser.getSelectedFile().getAbsolutePath();
@@ -871,20 +905,17 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 com.itextpdf.text.Font fTablaDato = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.NORMAL);
                 
                 // 3. Encabezado Oficial
-                documento.add(new com.itextpdf.text.Paragraph("DASHBOARD GERENCIAL DE FLOTA", fTitulo));
-                documento.add(new com.itextpdf.text.Paragraph("Transportes Hirata S.A. - Análisis de Telemetría IoT", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("INFORME DE LOGISTICA", fTitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Empresa Hirata S.A. - Análisis de Telemetría IoT", fSubtitulo));
                 documento.add(new com.itextpdf.text.Paragraph("Generado el: " + new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(new java.util.Date())));
                 documento.add(new com.itextpdf.text.Paragraph("\n"));
                 
-                // ==========================================================
-                // MOTOR DE CÁLCULO DE KPIs (INTELIGENCIA DE NEGOCIOS)
-                // ==========================================================
                 int totalViajes = tblRendimiento.getRowCount();
                 double combustibleGlobal = 0.0;
                 int alertasGlobales = 0;
                 int vehiculosEnRiesgo = 0;
                 
-                // Mapa para agrupar estadísticas por patente: [0]Viajes, [1]SumaGas, [2]SumaAlertas
+                // Mapa para agrupar estadísticas por patente
                 java.util.Map<String, double[]> statsVehiculos = new java.util.HashMap<>();
                 
                 for (int i = 0; i < totalViajes; i++) {
@@ -907,9 +938,8 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 
                 double promedioGasGlobal = (totalViajes > 0) ? (combustibleGlobal / totalViajes) : 0.0;
                 
-                // ==========================================================
+                
                 // TARJETAS SUPERIORES (KPIs GLOBALES)
-                // ==========================================================
                 com.itextpdf.text.pdf.PdfPTable tablaKpis = new com.itextpdf.text.pdf.PdfPTable(4);
                 tablaKpis.setWidthPercentage(100);
                 
@@ -991,7 +1021,14 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(diagnostico, fDiag));
                 }
                 documento.add(tablaPredictiva);
-                documento.add(new com.itextpdf.text.Paragraph("\n\n"));
+                documento.add(new com.itextpdf.text.Paragraph("\n"));
+                
+                com.itextpdf.text.Image graficoImg = crearGraficoConsumo(statsVehiculos, promedioGasGlobal);
+                if (graficoImg != null) {
+                    graficoImg.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+                    documento.add(graficoImg);
+                    documento.add(new com.itextpdf.text.Paragraph("\n\n"));
+                }
                 
                 // ==========================================================
                 // SECCIÓN 2: DISTRIBUCIÓN DE RUTAS (PORCENTAJE DE USO)
@@ -1100,6 +1137,106 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(() -> new PanelMonitoreoIoT().setVisible(true));
     }
+    
+    private com.itextpdf.text.Image crearGraficoConsumo(java.util.Map<String, double[]> statsVehiculos, double promedioGlobal) {
+        try {
+            int ancho = 500;
+            int alto = 220;
+            java.awt.image.BufferedImage bufferedImage = new java.awt.image.BufferedImage(ancho, alto, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g2 = bufferedImage.createGraphics();
+
+            // Configurar antialiasing para gráficos suaves y profesionales
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Fondo Blanco
+            g2.setColor(java.awt.Color.WHITE);
+            g2.fillRect(0, 0, ancho, alto);
+
+            // Título del Gráfico
+            g2.setColor(java.awt.Color.DARK_GRAY);
+            g2.setFont(new java.awt.Font("Arial", java.awt.Font.BOLD, 14));
+            g2.drawString("Comparativa de Consumo de Combustible (%)", 100, 20);
+
+            // Dibujar Ejes X e Y
+            int margenIzq = 50;
+            int margenAbajo = 30;
+            int alturaEje = alto - margenAbajo - 40;
+            int anchoEje = ancho - margenIzq - 20;
+
+            g2.setColor(java.awt.Color.BLACK);
+            g2.drawLine(margenIzq, 40, margenIzq, alto - margenAbajo); // Eje Y
+            g2.drawLine(margenIzq, alto - margenAbajo, ancho - 20, alto - margenAbajo); // Eje X
+
+            if (statsVehiculos.isEmpty()) return null;
+
+            // Encontrar el valor máximo para escalar las barras dinámicamente
+            double maxConsumo = 0;
+            for (double[] stats : statsVehiculos.values()) {
+                double prom = stats[1] / stats[0];
+                if (prom > maxConsumo) maxConsumo = prom;
+            }
+            if (maxConsumo == 0) maxConsumo = 100;
+
+            // Cálculos de espaciado
+            int numBarras = statsVehiculos.size();
+            int espacioEntreBarras = 30;
+            int anchoBarra = (anchoEje / numBarras) - espacioEntreBarras;
+            if (anchoBarra > 60) anchoBarra = 60; // Límite de grosor
+
+            int xActual = margenIzq + espacioEntreBarras;
+
+            // Dibujar las barras una por una
+            for (java.util.Map.Entry<String, double[]> entry : statsVehiculos.entrySet()) {
+                String patente = entry.getKey();
+                double promGas = entry.getValue()[1] / entry.getValue()[0];
+
+                int alturaBarra = (int) ((promGas / maxConsumo) * alturaEje);
+                int yBarra = (alto - margenAbajo) - alturaBarra;
+
+                // Lógica de Inteligencia de Negocios: Si gasta más que el promedio, se pinta Rojo, sino Azul
+                if (promGas > promedioGlobal) {
+                    g2.setColor(new java.awt.Color(204, 51, 51)); // Rojo Alerta
+                } else {
+                    g2.setColor(new java.awt.Color(0, 102, 204)); // Azul Corporativo
+                }
+                g2.fillRect(xActual, yBarra, anchoBarra, alturaBarra);
+
+                // Texto del porcentaje arriba de la barra
+                g2.setColor(java.awt.Color.BLACK);
+                g2.setFont(new java.awt.Font("Arial", java.awt.Font.BOLD, 11));
+                String textoValor = String.format("%.1f%%", promGas);
+                int anchoTextoVal = g2.getFontMetrics().stringWidth(textoValor);
+                g2.drawString(textoValor, xActual + (anchoBarra / 2) - (anchoTextoVal / 2), yBarra - 5);
+
+                // Texto de la patente debajo del eje X
+                g2.setFont(new java.awt.Font("Arial", java.awt.Font.PLAIN, 11));
+                int anchoTextoPat = g2.getFontMetrics().stringWidth(patente);
+                g2.drawString(patente, xActual + (anchoBarra / 2) - (anchoTextoPat / 2), alto - margenAbajo + 15);
+
+                xActual += anchoBarra + espacioEntreBarras;
+            }
+
+            // Dibujar Línea Punteada del Promedio Global
+            int yPromedio = (alto - margenAbajo) - (int) ((promedioGlobal / maxConsumo) * alturaEje);
+            g2.setColor(new java.awt.Color(0, 153, 51)); // Verde
+            java.awt.Stroke strokeOriginal = g2.getStroke();
+            g2.setStroke(new java.awt.BasicStroke(1, java.awt.BasicStroke.CAP_BUTT, java.awt.BasicStroke.JOIN_BEVEL, 0, new float[]{5}, 0));
+            g2.drawLine(margenIzq, yPromedio, ancho - 20, yPromedio);
+            g2.setStroke(strokeOriginal);
+            g2.drawString("Promedio: " + String.format("%.1f%%", promedioGlobal), ancho - 100, yPromedio - 5);
+
+            g2.dispose();
+
+            // Convertir la imagen de la memoria RAM al formato de iText PDF
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(bufferedImage, "png", baos);
+            return com.itextpdf.text.Image.getInstance(baos.toByteArray());
+
+        } catch (Exception e) {
+            System.err.println("Error al generar gráfico: " + e.getMessage());
+            return null;
+        }
+    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JPanel PanelInformes;
@@ -1110,12 +1247,15 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JScrollPane jScrollPane3;
+    private javax.swing.JScrollPane jScrollPane4;
     private javax.swing.JTabbedPane jTabbedPane1;
+    private javax.swing.JTable jTable1;
     private javax.swing.JPanel jfxContainer;
     private javax.swing.JLabel lblTotalAlertas;
     private javax.swing.JLabel lblTotalFlota;
