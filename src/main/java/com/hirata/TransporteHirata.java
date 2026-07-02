@@ -17,5 +17,6 @@ public class TransporteHirata {
         java.awt.EventQueue.invokeLater(() -> {
             new LoginView().setVisible(true);
         });
+        
     }
 }

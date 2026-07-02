@@ -882,21 +882,59 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
     }//GEN-LAST:event_btnExportarPDFActionPerformed
     
     private void generarReportePDF() {
+        // 1. Pedir la fecha al usuario mediante un cuadro de diálogo
+        java.text.SimpleDateFormat sdfInput = new java.text.SimpleDateFormat("dd/MM/yyyy");
+        String fechaHoy = sdfInput.format(new java.util.Date());
+        
+        String fechaFiltro = javax.swing.JOptionPane.showInputDialog(this, 
+                "Ingrese la fecha para generar el reporte diario (Formato: DD/MM/YYYY):", 
+                fechaHoy);
+                
+        // Si el usuario cancela o deja vacío
+        if (fechaFiltro == null || fechaFiltro.trim().isEmpty()) {
+            return; 
+        }
+        
+        // 2. FILTRAR LOS DATOS EN MEMORIA (Extraer solo los viajes de ese día)
+        int totalViajesHistoricos = tblRendimiento.getRowCount();
+        java.util.List<Object[]> viajesDelDia = new java.util.ArrayList<>();
+        
+        for (int i = 0; i < totalViajesHistoricos; i++) {
+            // La columna 5 es "Fecha" y viene con formato "dd/MM/yyyy HH:mm"
+            String fechaFila = tblRendimiento.getValueAt(i, 5).toString(); 
+            
+            if (fechaFila.startsWith(fechaFiltro)) { // Coincidencia exacta con el día
+                Object[] fila = new Object[6];
+                for (int j = 0; j < 6; j++) {
+                    fila[j] = tblRendimiento.getValueAt(i, j);
+                }
+                viajesDelDia.add(fila);
+            }
+        }
+        
+        // 3. Validar si hubo operaciones ese día
+        if (viajesDelDia.isEmpty()) {
+            javax.swing.JOptionPane.showMessageDialog(this, 
+                    "No se encontraron viajes logísticos registrados para la fecha: " + fechaFiltro, 
+                    "Sin Operaciones", javax.swing.JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 4. Abrir ventana para guardar el PDF con el nombre adaptado al día
         javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
-        fileChooser.setDialogTitle("Guardar Dashboard Gerencial PDF");
-        fileChooser.setSelectedFile(new java.io.File("logisticaHirata-log.pdf")); 
+        fileChooser.setDialogTitle("Guardar Reporte Diario PDF");
+        fileChooser.setSelectedFile(new java.io.File("Reporte_Diario_Hirata_" + fechaFiltro.replace("/", "-") + ".pdf")); 
         
         if (fileChooser.showSaveDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
             String rutaFichero = fileChooser.getSelectedFile().getAbsolutePath();
             if (!rutaFichero.toLowerCase().endsWith(".pdf")) rutaFichero += ".pdf";
             
             try {
-                // 1. Configurar documento A4 Vertical
                 com.itextpdf.text.Document documento = new com.itextpdf.text.Document(com.itextpdf.text.PageSize.A4); 
                 com.itextpdf.text.pdf.PdfWriter.getInstance(documento, new java.io.FileOutputStream(rutaFichero));
                 documento.open();
                 
-                // 2. Fuentes Profesionales
+                // Fuentes
                 com.itextpdf.text.Font fTitulo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 20, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(0, 51, 102));
                 com.itextpdf.text.Font fSubtitulo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 13, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(50, 50, 50));
                 com.itextpdf.text.Font fKpiVal = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 16, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(0, 102, 204));
@@ -904,51 +942,59 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 com.itextpdf.text.Font fTablaCabecera = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 10, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.WHITE);
                 com.itextpdf.text.Font fTablaDato = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.NORMAL);
                 
-                // 3. Encabezado Oficial
-                documento.add(new com.itextpdf.text.Paragraph("INFORME DE LOGISTICA", fTitulo));
-                documento.add(new com.itextpdf.text.Paragraph("Empresa Hirata S.A. - Análisis de Telemetría IoT", fSubtitulo));
+                // Encabezado Oficial
+                documento.add(new com.itextpdf.text.Paragraph("DASHBOARD GERENCIAL DIARIO", fTitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Transportes Hirata S.A. - Operaciones del " + fechaFiltro, fSubtitulo));
                 documento.add(new com.itextpdf.text.Paragraph("Generado el: " + new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(new java.util.Date())));
                 documento.add(new com.itextpdf.text.Paragraph("\n"));
                 
-                int totalViajes = tblRendimiento.getRowCount();
+                // ==========================================================
+                // RE-CALCULAR KPIs EXCLUSIVAMENTE PARA EL DÍA FILTRADO
+                // ==========================================================
+                int totalViajes = viajesDelDia.size();
                 double combustibleGlobal = 0.0;
                 int alertasGlobales = 0;
-                int vehiculosEnRiesgo = 0;
                 
-                // Mapa para agrupar estadísticas por patente
                 java.util.Map<String, double[]> statsVehiculos = new java.util.HashMap<>();
+                java.util.Map<String, Integer> agrupacionRutas = new java.util.HashMap<>();
                 
-                for (int i = 0; i < totalViajes; i++) {
-                    String patente = tblRendimiento.getValueAt(i, 0).toString();
-                    String gasStr = tblRendimiento.getValueAt(i, 3).toString().replace("%", "").replace(",", ".");
+                for (Object[] fila : viajesDelDia) {
+                    String patente = fila[0].toString();
+                    String origen = fila[1].toString();
+                    String destino = fila[2].toString();
+                    String gasStr = fila[3].toString().replace("%", "").replace(",", ".");
                     double gas = Double.parseDouble(gasStr);
-                    int alertas = Integer.parseInt(tblRendimiento.getValueAt(i, 4).toString());
+                    int alertas = Integer.parseInt(fila[4].toString());
                     
                     combustibleGlobal += gas;
                     alertasGlobales += alertas;
                     
+                    // Sumatorias para la predicción de mantenimiento (Gráfico y Tabla 1)
                     if (!statsVehiculos.containsKey(patente)) {
                         statsVehiculos.put(patente, new double[]{0, 0, 0});
                     }
                     double[] stats = statsVehiculos.get(patente);
-                    stats[0]++;        // +1 Viaje
-                    stats[1] += gas;   // Suma Combustible
-                    stats[2] += alertas; // Suma Alertas
+                    stats[0]++;        
+                    stats[1] += gas;   
+                    stats[2] += alertas; 
+                    
+                    // Agrupación matemática de las rutas usadas en el día
+                    String rutaClave = origen + "||" + destino; // Usamos un separador seguro
+                    agrupacionRutas.put(rutaClave, agrupacionRutas.getOrDefault(rutaClave, 0) + 1);
                 }
                 
                 double promedioGasGlobal = (totalViajes > 0) ? (combustibleGlobal / totalViajes) : 0.0;
                 
-                
-                // TARJETAS SUPERIORES (KPIs GLOBALES)
+                // Tarjetas Superiores
                 com.itextpdf.text.pdf.PdfPTable tablaKpis = new com.itextpdf.text.pdf.PdfPTable(4);
                 tablaKpis.setWidthPercentage(100);
                 
-                String[] titulosKpi = {"VIAJES TOTALES", "CONSUMO PROM.", "ALERTAS TOTALES", "ÍNDICE DE RIESGO"};
+                String[] titulosKpi = {"VIAJES DEL DÍA", "CONSUMO PROM.", "ALERTAS HOY", "ESTADO DIARIO"};
                 String[] valoresKpi = {
                     String.valueOf(totalViajes), 
                     String.format("%.1f%%", promedioGasGlobal), 
                     String.valueOf(alertasGlobales),
-                    (alertasGlobales > 0) ? "MODERADO" : "ÓPTIMO"
+                    (alertasGlobales > 0) ? "RIESGO" : "ÓPTIMO"
                 };
                 
                 for (int i = 0; i < 4; i++) {
@@ -963,26 +1009,21 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     celdaVal.setBorderColorBottom(new com.itextpdf.text.BaseColor(200, 200, 200));
                     celdaVal.setPaddingBottom(10f);
                     celdaVal.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-                    
-                    // Colorear rojo si el índice de riesgo es moderado/alto
                     if (i == 3 && alertasGlobales > 0) celdaVal.setPhrase(new com.itextpdf.text.Phrase(valoresKpi[i], new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 16, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.RED)));
-                    
                     tablaKpis.addCell(celdaVal);
                 }
                 documento.add(tablaKpis);
                 documento.add(new com.itextpdf.text.Paragraph("\n\n"));
                 
-                // ==========================================================
-                // SECCIÓN 1: PREDICCIÓN DE MANTENIMIENTO E ÍNDICE DE RIESGO
-                // ==========================================================
-                documento.add(new com.itextpdf.text.Paragraph("1. Eficiencia y Diagnóstico Predictivo por Vehículo", fSubtitulo));
-                documento.add(new com.itextpdf.text.Paragraph("Evaluación cruzada de rendimiento de motor y estabilidad de refrigeración térmica.\n\n", fTablaDato));
+                // Sección 1: Eficiencia
+                documento.add(new com.itextpdf.text.Paragraph("1. Eficiencia y Diagnóstico Predictivo (Hoy)", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Evaluación cruzada de rendimiento de motor y cadena de frío durante la jornada.\n\n", fTablaDato));
                 
                 com.itextpdf.text.pdf.PdfPTable tablaPredictiva = new com.itextpdf.text.pdf.PdfPTable(5);
                 tablaPredictiva.setWidthPercentage(100);
                 tablaPredictiva.setWidths(new float[]{1.5f, 1.5f, 1.5f, 1.5f, 2f});
                 
-                String[] cabecerasDiag = {"Patente", "Consumo Prom.", "Total Alertas", "Índice Riesgo", "Diagnóstico del Sistema"};
+                String[] cabecerasDiag = {"Patente", "Consumo Prom.", "Alertas Hoy", "Nivel Riesgo", "Diagnóstico del Sistema"};
                 for (String c : cabecerasDiag) {
                     com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(c, fTablaCabecera));
                     celda.setBackgroundColor(new com.itextpdf.text.BaseColor(0, 102, 204));
@@ -993,29 +1034,24 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 
                 for (java.util.Map.Entry<String, double[]> entry : statsVehiculos.entrySet()) {
                     String patente = entry.getKey();
-                    double[] stats = entry.getValue(); // [0]Viajes, [1]Gas, [2]Alertas
-                    
+                    double[] stats = entry.getValue(); 
                     double promGas = stats[1] / stats[0];
-                    double indiceRiesgo = stats[2] / stats[0]; // Alertas por viaje
+                    double indiceRiesgo = stats[2] / stats[0]; 
                     
                     String textoRiesgo = (indiceRiesgo > 0.5) ? "ALTO" : (indiceRiesgo > 0 ? "MEDIO" : "BAJO");
                     String diagnostico = "Operativo";
-                    
                     if (stats[2] > 0 || promGas > (promedioGasGlobal + 5.0)) {
                         diagnostico = "Revisión Recomendada";
-                        vehiculosEnRiesgo++;
                     }
                     
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(patente, fTablaDato));
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(String.format("%.1f%%", promGas), fTablaDato));
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(String.valueOf((int)stats[2]), fTablaDato));
                     
-                    // Colorear índice de riesgo
                     com.itextpdf.text.Font fRiesgo = fTablaDato;
                     if (textoRiesgo.equals("ALTO")) fRiesgo = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.RED);
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(textoRiesgo, fRiesgo));
                     
-                    // Colorear diagnóstico
                     com.itextpdf.text.Font fDiag = fTablaDato;
                     if (diagnostico.contains("Revisión")) fDiag = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(204, 102, 0));
                     tablaPredictiva.addCell(new com.itextpdf.text.Phrase(diagnostico, fDiag));
@@ -1023,6 +1059,7 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                 documento.add(tablaPredictiva);
                 documento.add(new com.itextpdf.text.Paragraph("\n"));
                 
+                // Insertar el gráfico dinámico generado EXCLUSIVAMENTE para hoy
                 com.itextpdf.text.Image graficoImg = crearGraficoConsumo(statsVehiculos, promedioGasGlobal);
                 if (graficoImg != null) {
                     graficoImg.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
@@ -1030,23 +1067,19 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     documento.add(new com.itextpdf.text.Paragraph("\n\n"));
                 }
                 
-                // ==========================================================
-                // SECCIÓN 2: DISTRIBUCIÓN DE RUTAS (PORCENTAJE DE USO)
-                // ==========================================================
-                documento.add(new com.itextpdf.text.Paragraph("2. Densidad Logística de Rutas", fSubtitulo));
-                documento.add(new com.itextpdf.text.Paragraph("Distribución porcentual de los corredores viales más utilizados.\n\n", fTablaDato));
+                // Sección 2: Rutas Diarias
+                documento.add(new com.itextpdf.text.Paragraph("2. Densidad Logística de Rutas (Hoy)", fSubtitulo));
+                documento.add(new com.itextpdf.text.Paragraph("Distribución porcentual de los corredores viales utilizados en la fecha analizada.\n\n", fTablaDato));
                 
-                // Calcular total de frecuencias para sacar el porcentaje
-                int sumaFrecuencias = 0;
-                for (int i = 0; i < tblRutas.getRowCount(); i++) {
-                    sumaFrecuencias += Integer.parseInt(tblRutas.getValueAt(i, 2).toString().replace(" viajes", "").trim());
-                }
+                // Ordenar las rutas del día por mayor frecuencia
+                java.util.List<java.util.Map.Entry<String, Integer>> listaRutas = new java.util.ArrayList<>(agrupacionRutas.entrySet());
+                listaRutas.sort((a, b) -> b.getValue().compareTo(a.getValue()));
                 
                 com.itextpdf.text.pdf.PdfPTable tablaDistribucion = new com.itextpdf.text.pdf.PdfPTable(4);
                 tablaDistribucion.setWidthPercentage(90);
                 tablaDistribucion.setWidths(new float[]{2f, 2f, 1f, 1f});
                 
-                String[] cabecerasRutas = {"Origen", "Destino", "Viajes", "Porcentaje"};
+                String[] cabecerasRutas = {"Origen", "Destino", "Viajes Hoy", "Porcentaje"};
                 for (String c : cabecerasRutas) {
                     com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(c, fTablaCabecera));
                     celda.setBackgroundColor(new com.itextpdf.text.BaseColor(0, 102, 204));
@@ -1054,60 +1087,54 @@ public class PanelMonitoreoIoT extends javax.swing.JFrame {
                     tablaDistribucion.addCell(celda);
                 }
                 
-                for (int i = 0; i < tblRutas.getRowCount(); i++) {
-                    String origen = tblRutas.getValueAt(i, 0).toString();
-                    String destino = tblRutas.getValueAt(i, 1).toString();
-                    String frecuenciaStr = tblRutas.getValueAt(i, 2).toString().replace(" viajes", "").trim();
-                    int frec = Integer.parseInt(frecuenciaStr);
-                    double porcentaje = (sumaFrecuencias > 0) ? ((double)frec / sumaFrecuencias) * 100 : 0.0;
+                for (java.util.Map.Entry<String, Integer> ruta : listaRutas) {
+                    String[] lugares = ruta.getKey().split("\\|\\|"); // Expresión regular para separar nuestro identificador
+                    int frec = ruta.getValue();
+                    double porcentaje = ((double)frec / totalViajes) * 100;
                     
-                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(origen, fTablaDato));
-                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(destino, fTablaDato));
-                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(frecuenciaStr, fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(lugares[0], fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(lugares[1], fTablaDato));
+                    tablaDistribucion.addCell(new com.itextpdf.text.Phrase(String.valueOf(frec), fTablaDato));
                     tablaDistribucion.addCell(new com.itextpdf.text.Phrase(String.format("%.1f%%", porcentaje), new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.HELVETICA, 9, com.itextpdf.text.Font.BOLD)));
                 }
                 documento.add(tablaDistribucion);
                 documento.add(new com.itextpdf.text.Paragraph("\n\n"));
                 
-                // ==========================================================
-                // SECCIÓN 3: BITÁCORA DETALLADA
-                // ==========================================================
-                documento.add(new com.itextpdf.text.Paragraph("3. Bitácora Cruda de Viajes Consolidada", fSubtitulo));
+                // Sección 3: Bitácora Cruda del Día
+                documento.add(new com.itextpdf.text.Paragraph("3. Bitácora de Movimientos del Día", fSubtitulo));
                 documento.add(new com.itextpdf.text.Paragraph(" ", fTablaDato));
                 
-                com.itextpdf.text.pdf.PdfPTable pdfTablaRendimiento = new com.itextpdf.text.pdf.PdfPTable(tblRendimiento.getColumnCount());
-                pdfTablaRendimiento.setWidthPercentage(100);
-                pdfTablaRendimiento.setWidths(new float[]{1.5f, 2f, 2f, 1.4f, 1.2f, 1.8f}); 
+                com.itextpdf.text.pdf.PdfPTable pdfTablaHistorial = new com.itextpdf.text.pdf.PdfPTable(6);
+                pdfTablaHistorial.setWidthPercentage(100);
+                pdfTablaHistorial.setWidths(new float[]{1.5f, 2f, 2f, 1.4f, 1.2f, 1.8f}); 
                 
                 for (int i = 0; i < tblRendimiento.getColumnCount(); i++) {
                     com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(tblRendimiento.getColumnName(i), fTablaCabecera));
                     celda.setBackgroundColor(new com.itextpdf.text.BaseColor(102, 102, 102)); 
                     celda.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
                     celda.setPadding(4);
-                    pdfTablaRendimiento.addCell(celda);
+                    pdfTablaHistorial.addCell(celda);
                 }
                 
-                for (int i = 0; i < tblRendimiento.getRowCount(); i++) {
-                    for (int j = 0; j < tblRendimiento.getColumnCount(); j++) {
-                        Object valor = tblRendimiento.getValueAt(i, j);
+                for (Object[] fila : viajesDelDia) {
+                    for (Object valor : fila) {
                         com.itextpdf.text.pdf.PdfPCell c = new com.itextpdf.text.pdf.PdfPCell(new com.itextpdf.text.Phrase(valor != null ? valor.toString() : "", fTablaDato));
                         c.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-                        pdfTablaRendimiento.addCell(c);
+                        pdfTablaHistorial.addCell(c);
                     }
                 }
-                documento.add(pdfTablaRendimiento);
+                documento.add(pdfTablaHistorial);
                 
-                // Pie de página
                 documento.add(new com.itextpdf.text.Paragraph("\n\n-- Fin del Documento --", fTablaDato));
                 documento.close();
                 
                 javax.swing.JOptionPane.showMessageDialog(this, 
-                        "El Dashboard Gerencial en formato A4 se exportó exitosamente.\n" + rutaFichero, 
+                        "El Reporte Diario del " + fechaFiltro + " se exportó exitosamente.\n" + rutaFichero, 
                         "Reporte Generado", javax.swing.JOptionPane.INFORMATION_MESSAGE);
                 
             } catch (Exception e) {
                 javax.swing.JOptionPane.showMessageDialog(this, 
-                        "Error al compilar la estructura del PDF: " + e.getMessage(), 
+                        "Error crítico al compilar el documento PDF: " + e.getMessage(), 
                         "Fallo de Escritura", javax.swing.JOptionPane.ERROR_MESSAGE);
             }
         }
